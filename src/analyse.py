@@ -100,6 +100,6 @@ def play_animation() -> None:
     ani.save("test.gif", writer=writer)
 
 if __name__=="__main__":
-    results_dir = os.path.join("C://Users//user-pc//Documents//Scripts//amaan", "data", "results", ("traj_results.pickle"))
+    results_dir = os.path.join("C://Users//user-pc//Desktop//AcinoSet", "data", "results", ("traj_results.pickle"))
     res = load_pickle(results_dir)
     print(res["positions"].shape)

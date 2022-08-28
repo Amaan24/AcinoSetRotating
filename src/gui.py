@@ -173,16 +173,16 @@ class PageOne(tk.Frame):
             """
             #label = tk.Label(self, text=controller.project_dir, font=controller.normal_font, background="#ffffff")
             #label.place(relx=0.5, rely=0.5, anchor="center")
-            #parts = pt.get_bodyparts(controller.project_dir)
-            parts = ["ankle1", "knee1", "hip1", "hip2", "knee2", "ankle2", "wrist1", "elbow1", "shoulder1", "shoulder2",
-            "elbow2", "wrist2", "chin", "forehead", "neck"]
+            parts = pt.get_bodyparts(controller.project_dir)
+            #parts = ["ankle1", "knee1", "hip1", "hip2", "knee2", "ankle2", "wrist1", "elbow1", "shoulder1", "shoulder2",
+            #"elbow2", "wrist2", "chin", "forehead", "neck"]
 
-            #for part in parts:
-            #    vals = pt.plot_skeleton(controller.project_dir, part)
+            for part in parts:
+                vals = pt.plot_skeleton(controller.project_dir, part)
 
-                #parts_dict[part] = [vals[0][frame_no],vals[1][frame_no],vals[2][frame_no]]
-                #points_dict[part] = a.scatter(parts_dict[part][0],parts_dict[part][1],parts_dict[part][2])
-                #update_canvas()
+                parts_dict[part] = [vals[0][frame_no],vals[1][frame_no],vals[2][frame_no]]
+                points_dict[part] = a.scatter(parts_dict[part][0],parts_dict[part][1],parts_dict[part][2])
+                update_canvas()
             
             combo.configure(values=parts)
             combo2.configure(values=parts)
@@ -367,7 +367,7 @@ class PageTwo(tk.Frame):
             """
             Replots canvas on the GUI with updated points
             """
-<<<<<<< HEAD
+
             a.w_xaxis.set_pane_color((1.0, 1.0, 1.0, 1.0))
             a.w_yaxis.set_pane_color((1.0, 1.0, 1.0, 1.0))
             a.w_zaxis.set_pane_color((1.0, 1.0, 1.0, 1.0))
@@ -378,10 +378,10 @@ class PageTwo(tk.Frame):
             #a.set_zticks([])
             a.set_xlim3d(4, 8)
             a.set_ylim3d(0, 4)
-=======
+
             a.set_xlim3d(-2, 2)
             a.set_ylim3d(5, 9)
->>>>>>> 5e59a700d6082e6bf4101a56e12d5368ff8ac4db
+
             a.set_zlim3d(-2,2)
             canvas = FigureCanvasTkAgg(f, self)
             canvas.get_tk_widget().pack(side=tk.BOTTOM, fill=tk.BOTH, expand=True)
@@ -403,13 +403,13 @@ class PageTwo(tk.Frame):
             pose_dict = {}
             currdir = os.getcwd()
             skel_name = (field_name1.get())
-<<<<<<< HEAD
+
             skelly_dir = os.path.join("C://Users//user-pc//Documents//Scripts//amaan", "skeletons", ("new_human.pickle"))
             results_dir = os.path.join("C://Users//user-pc//Documents//Scripts//amaan", "data", "results", "cheetah_final", ("fte.pickle"))
-=======
-            skelly_dir = os.path.join("/Users/user/Documents/Scripts/amaan_acino/AcinoSet", "skeletons", ("new_human.pickle"))
-            results_dir = os.path.join("/Users/user/Documents/Scripts/amaan_acino/AcinoSet", "data", "results", ("traj_results.pickle"))
->>>>>>> 5e59a700d6082e6bf4101a56e12d5368ff8ac4db
+
+            skelly_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//skeletons", ("new_human.pickle"))
+            results_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//data", "19Aug2022", "results", ("traj_results.pickle"))
+
 
             skel_dict = bd.load_skeleton(skelly_dir)
             results = an.load_pickle(results_dir)
@@ -442,7 +442,7 @@ class PageTwo(tk.Frame):
             markers = ["chin", "forehead", "neck", "shoulder1", "shoulder2",
                 "hip1", "hip2", "elbow1", "elbow2", "wrist1", "wrist2", "knee1", "knee2", "ankle1", "ankle2"]
 
-            enc_arr = an.load_pickle("C://Users//user-pc//Desktop//enc_vals.pickle")
+            #enc_arr = an.load_pickle("C://Users//user-pc//Desktop//AcinoSetRotating//data//encoder_values//enc_vals.pickle")
             
             positions = results["positions"]
             """
@@ -455,11 +455,12 @@ class PageTwo(tk.Frame):
                     positions[frame][part][0], positions[frame][part][1], positions[frame][part][2] = new_xyz[0], new_xyz[1], new_xyz[2]
             """
             for i in range(len(markers)):
-                enc_val = int(enc_arr[frame][1])
-                rad_change = pc.count_to_rad(enc_val)
+#                enc_val = int(enc_arr[frame][1])
+#                rad_change = pc.count_to_rad(enc_val)
                 point = [positions[frame][i][0], positions[frame][i][1], positions[frame][i][2]]
-                new_xyz = pc.rotate_point(point,rad_change)
-                print('Rotation: {} deg'.format(rad_change*180/np.pi))
+#                new_xyz = pc.rotate_point(point,rad_change)
+                new_xyz = pc.rotate_point(point,0)
+#                print('Rotation: {} deg'.format(rad_change*180/np.pi))
                 new_xyz = point
                 pose_dict[markers[i]] = new_xyz
                 print(new_xyz)
@@ -474,7 +475,7 @@ class PageTwo(tk.Frame):
                     [pose_dict[link[0]][2], pose_dict[link[1]][2]], color="black")
 
             update_canvas()
-            plt.savefig("C://Users//user-pc//Desktop//frames//img" + str(self.current_frame)+".jpg", dpi=100)
+            plt.savefig(os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//data", "19Aug2022" ,"frames","img") + str(self.current_frame)+".jpg", dpi=100)
         
         def next_frame() -> None:
             """

@@ -1,6 +1,6 @@
 import numpy as np
 from typing import Tuple, Union
-from nptyping import Array
+from nptyping import array
 import cv2
 from .utils import create_board_object_pts
 from scipy.sparse import lil_matrix
@@ -10,7 +10,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # ========== STANDARD CAMERA MODEL ==========
-def calibrate_camera(obj_pts: Array[np.float32, ..., 3], img_pts: Array[np.float32, ..., ..., 2],
+def calibrate_camera(obj_pts: array.Array[np.float32, ..., 3], img_pts: array.Array[np.float32, ..., ..., 2],
                      camera_resolution: Tuple[int, int]) -> Union[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray], None]:
     assert len(img_pts)>=4, "Need at least 4 vaild frames to perform calibration."
     obj_pts = np.repeat(obj_pts[np.newaxis, :, :], img_pts.shape[0], axis=0).reshape((img_pts.shape[0], -1, 1, 3))
@@ -22,15 +22,15 @@ def calibrate_camera(obj_pts: Array[np.float32, ..., 3], img_pts: Array[np.float
     return None
 
 
-def create_undistort_point_function(k: Array[np.float64, 3, 3], d: Array[np.float64, ...]):
-    def undistort_points(pts: Array[np.float32, ..., 2]):
+def create_undistort_point_function(k: array.Array[np.float64, 3, 3], d: array.Array[np.float64, ...]):
+    def undistort_points(pts: array.Array[np.float32, ..., 2]):
         pts = pts.reshape((-1, 1, 2))
         undistorted = cv2.undistortPoints(pts, k, d, P=k)
         return undistorted.reshape((-1,2))
     return undistort_points
 
 
-def create_undistort_img_function(k: Array[np.float64, 3, 3], d: Array[np.float64, ...], camera_resolution):
+def create_undistort_img_function(k: array.Array[np.float64, 3, 3], d: array.Array[np.float64, ...], camera_resolution):
     map_x, map_y = cv2.initUndistortRectifyMap(k, d, None, k, camera_resolution, cv2.CV_32FC1)
     def undistort_image(img):
         dst = cv2.remap(img, map_x, map_y, cv2.INTER_LINEAR)
@@ -69,9 +69,9 @@ def project_points(obj_pts, k, d, r, t):
 
 
 # ========== FISHEYE CAMERA MODEL ==========
-def calibrate_fisheye_camera(obj_pts: Array[np.float32, ..., 3], img_pts: Array[np.float32, ..., ..., 2],
+def calibrate_fisheye_camera(obj_pts: array.Array[np.float32, ..., 3], img_pts: array.Array[np.float32, ..., ..., 2],
                              camera_resolution: Tuple[int, int]) -> Union[Tuple[np.ndarray, np.ndarray, np.ndarray,
-                                                                    np.ndarray, Array[np.float32, ..., ..., 2]], None]:
+                                                                    np.ndarray, array.Array[np.float32, ..., ..., 2]], None]:
     assert len(img_pts) >= 4, "Need at least 4 vaild frames to perform calibration."
     obj_pts_new = np.repeat(obj_pts[np.newaxis, :, :], img_pts.shape[0], axis=0).reshape((img_pts.shape[0], -1, 1, 3))
     img_pts_new = img_pts.reshape((img_pts.shape[0], -1, 1, 2))
@@ -90,15 +90,15 @@ def calibrate_fisheye_camera(obj_pts: Array[np.float32, ..., 3], img_pts: Array[
             return calibrate_fisheye_camera(obj_pts, img_pts, camera_resolution)
 
 
-def create_undistort_fisheye_point_function(k: Array[np.float64, 3, 3], d: Array[np.float64, ...]):
-    def undistort_points(pts: Array[np.float32, ..., 2]):
+def create_undistort_fisheye_point_function(k: array.Array[np.float64, 3, 3], d: array.Array[np.float64, ...]):
+    def undistort_points(pts: array.Array[np.float32, ..., 2]):
         pts = pts.reshape((-1, 1, 2))
         undistorted = cv2.fisheye.undistortPoints(pts, k, d, P=k)
         return undistorted.reshape((-1,2))
     return undistort_points
 
 
-def create_undistort_fisheye_img_function(k: Array[np.float64, 3, 3], d: Array[np.float64, ...], camera_resolution):
+def create_undistort_fisheye_img_function(k: array.Array[np.float64, 3, 3], d: array.Array[np.float64, ...], camera_resolution):
     map_x, map_y = cv2.fisheye.initUndistortRectifyMap(k, d, np.eye(3), k, camera_resolution, cv2.CV_32FC1)
     def undistort_image(img):
         dst = cv2.remap(img, map_x, map_y, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)

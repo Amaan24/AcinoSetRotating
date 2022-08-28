@@ -1,10 +1,10 @@
 import numpy as np
 from typing import Tuple, List, Union
-from nptyping import Array
+from nptyping import array
 import cv2
 
 
-def plot_corners(img: Array[np.uint8, ..., ..., 3], corners: Array[np.float32, ..., ..., 2], board_shape: Tuple[int, int], show_window=False):
+def plot_corners(img: array.Array[np.uint8, ..., ..., 3], corners: array.Array[np.float32, ..., ..., 2], board_shape: Tuple[int, int], show_window=False):
     """
     :param img: image as a numpy array of ints of shape (height, width, 3)
     :param corners: pixel positions of found corners as a numpy array of ints of shape (points_per_row, points_per_column, 2)
@@ -21,7 +21,7 @@ def plot_corners(img: Array[np.uint8, ..., ..., 3], corners: Array[np.float32, .
     return img
 
 
-def find_corners(img: Array[np.uint8, ..., ..., 3], board_shape: Tuple[int, int], window_size=11) -> Union[Array[np.float32, ..., ..., 2], None]:
+def find_corners(img: array.Array[np.uint8, ..., ..., 3], board_shape: Tuple[int, int], window_size=11) -> Union[array.Array[np.float32, ..., ..., 2], None]:
     """
     :param img: image as a numpy array of ints of shape (height, width, 3)
     :param board_shape: tuple of ints representing the number of corners (points_per_row, points_per_column)
@@ -41,7 +41,7 @@ def find_corners(img: Array[np.uint8, ..., ..., 3], board_shape: Tuple[int, int]
     return None
 
 
-def find_corners_images(filepaths: List[str], board_shape: Tuple[int, int], window_size=11) -> Tuple[Array[np.float32, ..., ..., ..., 2], List[str], Tuple[int, int]]:
+def find_corners_images(filepaths: List[str], board_shape: Tuple[int, int], window_size=11) -> Tuple[array.Array[np.float32, ..., ..., ..., 2], List[str], Tuple[int, int]]:
     """
     :param filepaths: paths to image files
     :param board_shape: tuple of ints representing the number of corners (points_per_row, points_per_column)

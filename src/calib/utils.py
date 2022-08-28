@@ -1,13 +1,13 @@
 import numpy as np
 import pandas as pd
 from typing import Tuple
-from nptyping import Array
+from nptyping import array
 from datetime import datetime
 import json
 import os
 
 
-def create_board_object_pts(board_shape: Tuple[int, int], square_edge_length: np.float32) -> Array[np.float32, ..., 3]:
+def create_board_object_pts(board_shape: Tuple[int, int], square_edge_length: np.float32) -> array.Array[np.float32, ..., 3]:
     object_pts = np.zeros((board_shape[0]*board_shape[1], 3), np.float32)
     object_pts[:, :2] = np.mgrid[0:board_shape[0], 0:board_shape[1]].T.reshape(-1, 2) * square_edge_length
     return object_pts
