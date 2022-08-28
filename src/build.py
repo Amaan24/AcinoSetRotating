@@ -162,7 +162,7 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
     L = len(pos_funcs)
     C = len(K_arr)
     D2 = 2 #What is this number
-    D3 = 3 #What is this number
+    D3 = 3 #What is this number?
 
     proj_funcs = [pt3d_to_x2d, pt3d_to_y2d]
 
