@@ -48,7 +48,7 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
     phi = [sp.symbols(f"\\phi_{{{l}}}") for l in range(L)]
     theta = [sp.symbols(f"\\theta_{{{l}}}") for l in range(L)]
     psi = [sp.symbols(f"\\psi_{{{l}}}") for l in range(L)]
-    alpha = [sp.symbols(f"\\alpha_{{{l}}}") for l in range(L)] # Rotation from world to camera 1 frame
+    alpha = [sp.symbols(f"\\alpha_{{{l}}}") for l in range(L)] # Rotation from world to camera 1 frame?? Only one, not a set? 
     beta = [sp.symbols(f"\\beta_{{{l}}}") for l in range(L)] # Rotation from world to camera 2 frame
 
     i = 0
