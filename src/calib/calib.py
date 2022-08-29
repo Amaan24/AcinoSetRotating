@@ -129,6 +129,19 @@ def triangulate_points_fisheye(img_pts_1, img_pts_2, k1, d1, r1, t1, k2, d2, r2,
     pts_3d = (pts_4d[:3] / pts_4d[3]).T
     return pts_3d
 
+#TODO: Update function
+def triangulate_points_fisheye_rotating(img_pts_1, img_pts_2, k1, d1, r1, t1, encVals1, k2, d2, r2, t2, encVals2, frame_nos):
+    pts_1 = img_pts_1.reshape((-1,1,2))
+    pts_2 = img_pts_2.reshape((-1, 1, 2))
+    pts_1 = cv2.fisheye.undistortPoints(pts_1, k1, d1)
+    pts_2 = cv2.fisheye.undistortPoints(pts_2, k2, d2)
+    for 
+    p1 = np.hstack((r1, t1))
+    p2 = np.hstack((r2, t2))
+    pts_4d = cv2.triangulatePoints(p1, p2, pts_1, pts_2)
+    pts_3d = (pts_4d[:3] / pts_4d[3]).T
+    return pts_3d
+
 def project_points_fisheye(obj_pts, k, d, r, t):
     obj_pts_reshaped = obj_pts.reshape((-1, 1, 3))
     r_vec = cv2.Rodrigues(r)[0]
@@ -422,7 +435,41 @@ def get_pairwise_3d_points_from_df(points_2d_df, k_arr, d_arr, r_arr, t_arr, tri
     points_3d_df = df_pairs[['frame', 'marker', 'x','y','z']].groupby(['frame','marker']).mean().reset_index()
     return points_3d_df
 
+def get_pairwise_3d_points_from_df_rotating(points_2d_df, k_arr, d_arr, r_arr, t_arr, encVals1, encVals2, triangulate_func):
+    n_cameras = len(k_arr)
+    camera_pairs = list([(i, i+1) for i in range(n_cameras-1)])
+    df_pairs = pd.DataFrame(columns=['x','y','z'])
+    if "lab" in str(points_2d_df['frame'][0]):
+        points_2d_df['frame'] = points_2d_df['frame'].str.replace(r".*img", '')
+        points_2d_df['frame'] = points_2d_df['frame'].str.replace(".png", '')
+    #print(points_2d_df)
+    #get pairwise estimates
+    for (cam_a, cam_b) in camera_pairs:
+        d0 = points_2d_df[points_2d_df['camera']==cam_a]
+        d1 = points_2d_df[points_2d_df['camera']==cam_b]
+        intersection_df = d0.merge(d1, how='inner', on=['frame','marker'], suffixes=('_a', '_b'))
+        if intersection_df.shape[0] > 0:
+            print(f"Found {intersection_df.shape[0]} pairwise points between camera {cam_a} and {cam_b}")
+            cam_a_points = np.array(intersection_df[['x_a','y_a']], dtype=np.float).reshape((-1,1,2))
+            cam_b_points = np.array(intersection_df[['x_b','y_b']], dtype=np.float).reshape((-1,1,2))
+            frame_nos = np.array(intersection_df[['frame']], dtype=np.int16)
+            print("Frames")
+            print(len(frame_nos))
+            points_3d = triangulate_func(cam_a_points, cam_b_points,
+                                            k_arr[cam_a], d_arr[cam_a], r_arr[cam_a], t_arr[cam_a], encVals1,
+                                            k_arr[cam_b], d_arr[cam_b], r_arr[cam_b], t_arr[cam_b], encVals2,
+                                            frame_nos)
+                                        
+            intersection_df['x'] = points_3d[:, 0]
+            intersection_df['y'] = points_3d[:, 1]
+            intersection_df['z'] = points_3d[:, 2]
+            df_pairs = pd.concat([df_pairs, intersection_df], ignore_index=True, join='outer', sort=False)
+        else:
+            print(f"No pairwise points between camera {cam_a} and {cam_b}")
 
+    #print(df_pairs)
+    points_3d_df = df_pairs[['frame', 'marker', 'x','y','z']].groupby(['frame','marker']).mean().reset_index()
+    return points_3d_df
 
 # def prepare_point_data_for_bundle_adjustment(points_2d_df, k_arr, d_arr, r_arr, t_arr, triangulate_func):
 #

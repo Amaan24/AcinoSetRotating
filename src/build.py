@@ -48,9 +48,12 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
     phi = [sp.symbols(f"\\phi_{{{l}}}") for l in range(L)]
     theta = [sp.symbols(f"\\theta_{{{l}}}") for l in range(L)]
     psi = [sp.symbols(f"\\psi_{{{l}}}") for l in range(L)]
-    alpha = [sp.symbols(f"\\alpha_{{{l}}}") for l in range(L)] # Rotation from world to camera 1 frame?? Only one, not a set? 
-    beta = [sp.symbols(f"\\beta_{{{l}}}") for l in range(L)] # Rotation from world to camera 2 frame
 
+    alpha =  sp.symbols("alpha") # Rotation from world to camera 1 frame?? Only one, not a set? 
+    beta =  sp.symbols("beta") # Rotation from world to camera 2 frame
+    dalpha, dbeta = sp.symbols("\\dot{alpha} \\dot{beta}")
+    ddalpha, ddbeta = sp.symbols("\\ddot{alpha} \\ddot{beta}")
+    
     i = 0
 
     for part in dofs:
@@ -63,7 +66,7 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
             rot_dict[part] = rot_z(psi[i]) @ rot_dict[part] # Add z rotation if joint is free to rotate about z axis
 
         # All parts need to be rotated into Inertial frame (aligned with C1 @ t0)
-        rot_dict[part] = rot_z(alpha[i]) @ rot_dict[part] # Rotation about Z axis by alpha (C1 rotation angle)
+        rot_dict[part] = rot_z(alpha) @ rot_dict[part] # Rotation about Z axis by alpha (C1 rotation angle)
 
         rot_dict[part + "_i"] = rot_dict[part].T
         i += 1
@@ -72,13 +75,9 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
     dx, dy, dz = sp.symbols("\\dot{x} \\dot{y} \\dot{z}")
     ddx, ddy, ddz = sp.symbols("\\ddot{x} \\ddot{y} \\ddot{z}")
 
-    al, be = sp.symbols("alpha beta")
-    dal, dbe = sp.symbols("\\dot{alpha} \\dot{beta}")
-    ddal, ddbe = sp.symbols("\\ddot{alpha} \\ddot{beta}")
-
     print("links")
     print(links)
-
+    
     for link in links:
         if len(link) == 1:
             pose_dict[link[0]] = sp.Matrix([x, y, z])
@@ -103,7 +102,7 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
     t_poses_mat = sp.Matrix(t_poses)
 
     func_map = {"sin": sin, "cos": cos, "ImmutableDenseMatrix": np.array}
-    sym_list = [x, y, z, *phi, *theta, *psi, *alpha, *beta]
+    sym_list = [x, y, z, *phi, *theta, *psi, alpha, beta]
     pose_to_3d = sp.lambdify(sym_list, t_poses_mat, modules=[func_map])
     pos_funcs = []
 
@@ -112,17 +111,12 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
         pos_funcs.append(lamb)
 
     scene_path = os.path.join(project_dir, "data", args.project, "extrinsic_calib", "2_cam_scene_sba.json")
-    #scene_path = os.path.join(project_dir, "data", args.project, "extrinsic_calib", "4_cam_scene_static_sba.json")
 
     encoder_path = os.path.join(project_dir, "data", args.project, "extrinsic_calib", "encoder_data.pkl")
     with open(encoder_path, 'rb') as handle:
         encoder_arr = pickle.load(handle)
 
     K_arr, D_arr, R_arr, t_arr, _ = utils.load_scene(scene_path)
-    print(R_arr)
-    print(R_arr.shape)
-    print(t_arr)
-    print(t_arr.shape)
     D_arr = D_arr.reshape((-1, 4))
 
     markers_dict = dict(enumerate(markers))
@@ -157,8 +151,8 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
     h = 1 / 200  # timestep: 1/(2 x framerate)?
     start_frame = args.start_frame  # 50
     N = args.end_frame - args.start_frame
-    P = 3 + len(phi) + len(theta) + len(psi)
-    #P = 3 + len(phi) + len(theta) + len(psi) + len(alpha) + len(beta) #For rotating C1 and C2
+    #P = 3 + len(phi) + len(theta) + len(psi)
+    P = 3 + len(phi) + len(theta) + len(psi) + 2 #For rotating C1 and C2
     L = len(pos_funcs)
     C = len(K_arr)
     D2 = 2 #What is this number
@@ -168,23 +162,27 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
 
     R = 3  # measurement standard deviation
 
-    ## TO DO: Update estimation of initial points to include rotation!!
-    ## TO DO: Updaterd get get_pairwise 3d_points_from_df
+    ## TODO: Update estimation of initial points to include rotation!!
+    ## TODO: Update get_pairwise 3d_points_from_df
+    #triangulate_func = calib.triangulate_points_fisheye_rotating
     triangulate_func = calib.triangulate_points_fisheye
     #points_2d_filtered_df = points_2d_df[points_2d_df['likelihood'] > 0.4]
     points_2d_filtered_df = points_2d_df[points_2d_df['likelihood'] > 0.2]
+    print(points_2d_filtered_df)
     points_3d_df = calib.get_pairwise_3d_points_from_df(points_2d_filtered_df, K_arr, D_arr, R_arr, t_arr,
+    #points_3d_df = calib.get_pairwise_3d_points_from_df_rotating(points_2d_filtered_df, K_arr, D_arr, R_arr, t_arr,
                                                         triangulate_func)
     print("3d points")
     print(points_3d_df)
+    exit()
 
     # estimate initial points from linear regression of all forehead points??
     # Sets the initial points cv                                                        
-    nose_pts = points_3d_df[points_3d_df["marker"] == "forehead"][["x", "y", "z", "frame", "marker"]].values
+    nose_pts = points_3d_df[points_3d_df["marker"] == "forehead"][["x", "y", "z", "frame" ]].values
     print(nose_pts)
     print(nose_pts[:, 3])
     print(nose_pts[:, 0])
-    exit()
+    
     xs = stats.linregress(nose_pts[:, 3], nose_pts[:, 0])
     ys = stats.linregress(nose_pts[:, 3], nose_pts[:, 1])
     zs = stats.linregress(nose_pts[:, 3], nose_pts[:, 2])
@@ -240,8 +238,6 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
     # ===== VARIABLES =====
     # TODO: Update Variables and Variable init to include alpha and beta
     m.x = Var(m.N, m.P)  # position
-    print('here')
-    print(m.x)
     m.dx = Var(m.N, m.P)  # velocity
     m.ddx = Var(m.N, m.P)  # acceleration
     m.poses = Var(m.N, m.L, m.D3)
