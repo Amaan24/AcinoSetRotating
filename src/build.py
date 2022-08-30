@@ -1,3 +1,4 @@
+from cmath import pi
 from sqlite3 import dbapi2
 from typing import Dict
 import pickle
@@ -14,6 +15,7 @@ from pyomo.opt import SolverFactory
 from pyomo.opt import SolverStatus, TerminationCondition
 from pyomo.core.base.PyomoModel import ConcreteModel
 from argparse import ArgumentParser
+import pan_compensation as pc
 
 pose_to_3d = []
 
@@ -116,7 +118,12 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
     with open(encoder_path, 'rb') as handle:
         encoder_arr = pickle.load(handle)
 
+    encoder_arr = np.zeros((51, 2)) 
+    print(encoder_arr)
+
     K_arr, D_arr, R_arr, t_arr, _ = utils.load_scene(scene_path)
+    print(R_arr)
+    print(t_arr)
     D_arr = D_arr.reshape((-1, 4))
 
     markers_dict = dict(enumerate(markers))
@@ -137,6 +144,9 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
         d_idx = {1: "x", 2: "y"}
         val = points_2d_df[n_mask & l_mask & c_mask]
         return val[d_idx[d]].values[0]
+
+    def get_enc_meas(n, c):
+        return encoder_arr[n, c]
 
     def get_likelihood_from_df(n, c, l):
         n_mask = points_2d_df["frame"] == n - 1
@@ -174,7 +184,6 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
                                                         triangulate_func)
     print("3d points")
     print(points_3d_df)
-    exit()
 
     # estimate initial points from linear regression of all forehead points??
     # Sets the initial points cv                                                        
@@ -217,6 +226,12 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
     m.meas_err_weight = Param(m.N, m.C, m.L, initialize=init_meas_weights, mutable=True,
                               within=Any)  # IndexError: index 0 is out of bounds for axis 0 with size 0
 
+    ## For rotating c1 and c2
+    def init_encoder_err_weight(m):
+        return (1/(2*np.pi*102000))**2
+
+    m.enc_err_weight = Param(initialize=init_encoder_err_weight, mutable=True, within=Any)
+
     def init_model_weights(m, p):
         # if Q[p-1] != 0.0:
         # return 1/Q[p-1]
@@ -235,20 +250,33 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
 
     m.meas = Param(m.N, m.C, m.L, m.D2, initialize=init_measurements_df, within=Any)
 
+    def init_encoder_measurements(m, n,c):
+        return pc.count_to_rad(get_enc_meas[n,c])
+    
+    m.meas_enc = Param(m.N, m.C, initialise=init_encoder_measurements, within=Any)
+
     # ===== VARIABLES =====
-    # TODO: Update Variables and Variable init to include alpha and beta
     m.x = Var(m.N, m.P)  # position
     m.dx = Var(m.N, m.P)  # velocity
     m.ddx = Var(m.N, m.P)  # acceleration
+    #m.alpha = Var(m.N) #CamA position
+    #m.dalpha = Var(m.N) #CamA velocity
+    #m.ddalpha = Var(m.N) #CamA acceleration 
+    #m.beta = Var(m.N) #CamB position
+    #m.dbeta = Var(m.N) #CamB velocity
+    #m.ddbeta = Var(m.N) #CamB acceleration
     m.poses = Var(m.N, m.L, m.D3)
     m.slack_model = Var(m.N, m.P)
-    m.slack_meas = Var(m.N, m.C, m.L, m.D2, initialize=0.0)
+    m.slack_meas = Var(m.N, m.C, m.L, m.D2, initialize=0.0) #Update
 
     # ===== VARIABLES INITIALIZATION =====
     init_x = np.zeros((N, P))
     init_x[:, 0] = x_est  # x
     init_x[:, 1] = y_est  # y
     init_x[:, 2] = z_est  # z
+    print("x")
+    print(init_x.shape)
+    print(init_x)
     # init_x[:,(3+len(pos_funcs)*2)] = psi_est #yaw - psi
     init_dx = np.zeros((N, P))
     init_ddx = np.zeros((N, P))
@@ -268,6 +296,10 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
             [pos] = pos_funcs[l - 1](*var_list)
             for d3 in range(1, D3 + 1):
                 m.poses[n, l, d3].value = pos[d3 - 1]
+    print("dx")
+    print(init_dx)
+    print("ddx")
+    print(init_ddx)
 
     # ===== CONSTRAINTS =====
     # 3D POSE
@@ -312,9 +344,6 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
     m.constant_acc = Constraint(m.N, m.P, rule=constant_acc)
     #Why no inclusion of psi, theta and phi
 
-    #TODO: add const acceleration model for alpha and beta?
-
-
     # MEASUREMENT
     #TODO: Update measurement_constraints for rotaion
     def measurement_constraints(m, n, c, l, d2):
@@ -327,21 +356,24 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
             return proj_funcs[d2 - 1](x, y, z, K, D, R, t) - m.meas[n, c, l, d2] - m.slack_meas[n, c, l, d2] == 0
     m.measurement = Constraint(m.N, m.C, m.L, m.D2, rule=measurement_constraints)
 
-    #TODO: Update obj function to include encoder error
     def obj(m):
         slack_model_err = 0.0
         slack_meas_err = 0.0
+        enc_err = 0.0
         for n in range(1, N + 1):
             # Model Error
             for p in range(1, P + 1):
                 slack_model_err += m.model_err_weight[p] * m.slack_model[n, p] ** 2
             # Measurement Error
-            for l in range(1, L + 1):
-                for c in range(1, C + 1):
-                    for d2 in range(1, D2 + 1):
+            for l in range(1, L + 1): #labels
+                for c in range(1, C + 1): #cameras
+                    for d2 in range(1, D2 + 1): #Dimension on measurements
                         # slack_meas_err += redescending_loss(m.meas_err_weight[n, c, l] * m.slack_meas[n, c, l, d2], 3, 5, 15)
-                        slack_meas_err += abs(m.meas_err_weight[n, c, l] * m.slack_meas[n, c, l, d2])
-        return slack_meas_err + slack_model_err
+                        slack_meas_err += abs(m.meas_err_weight[n, c, l] * m.slack_meas[n, c, l, d2]) 
+            # Encoder Measurement Error
+            enc_err += abs(m.enc_err_weight * (m.x[-2] - m.meas_enc[n,1]) + m.enc_err_weight * (m.x[-1] - m.meas_enc[n,2])) 
+
+        return slack_meas_err + slack_model_err + enc_err
 
     m.obj = Objective(rule=obj)
 

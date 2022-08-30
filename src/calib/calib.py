@@ -9,6 +9,8 @@ import time
 import pandas as pd
 import matplotlib.pyplot as plt
 
+import pan_compensation as pc
+
 # ========== STANDARD CAMERA MODEL ==========
 def calibrate_camera(obj_pts: array.Array[np.float32, ..., 3], img_pts: array.Array[np.float32, ..., ..., 2],
                      camera_resolution: Tuple[int, int]) -> Union[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray], None]:
@@ -135,7 +137,9 @@ def triangulate_points_fisheye_rotating(img_pts_1, img_pts_2, k1, d1, r1, t1, en
     pts_2 = img_pts_2.reshape((-1, 1, 2))
     pts_1 = cv2.fisheye.undistortPoints(pts_1, k1, d1)
     pts_2 = cv2.fisheye.undistortPoints(pts_2, k2, d2)
-    for 
+    for i in enumerate(frame_nos):
+        r1 = r1 @ rot_z(pc.count_to_rad(encVals1[i]))
+        r2 = r2 @ rot_z(pc.count_to_rad(encVals2[i]))
     p1 = np.hstack((r1, t1))
     p2 = np.hstack((r2, t2))
     pts_4d = cv2.triangulatePoints(p1, p2, pts_1, pts_2)
