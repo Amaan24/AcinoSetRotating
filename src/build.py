@@ -251,9 +251,9 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
     m.meas = Param(m.N, m.C, m.L, m.D2, initialize=init_measurements_df, within=Any)
 
     def init_encoder_measurements(m, n,c):
-        return pc.count_to_rad(get_enc_meas[n,c])
+        return pc.count_to_rad(get_enc_meas(n-1,c-1))
     
-    m.meas_enc = Param(m.N, m.C, initialise=init_encoder_measurements, within=Any)
+    m.meas_enc = Param(m.N, m.C, initialize=init_encoder_measurements, within=Any)
 
     # ===== VARIABLES =====
     m.x = Var(m.N, m.P)  # position
@@ -349,6 +349,9 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
     def measurement_constraints(m, n, c, l, d2):
         # project
         K, D, R, t = K_arr[c - 1], D_arr[c - 1], R_arr[c - 1], t_arr[c - 1]
+
+        R =  R @ rot_z(encoder_arr[n,c])
+
         x, y, z = m.poses[n, l, 1], m.poses[n, l, 2], m.poses[n, l, 3]
         if (markers[l - 1] == "neck"):
             return Constraint.Skip

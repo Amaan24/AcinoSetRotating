@@ -113,6 +113,10 @@ def _calibrate_pairwise_extrinsics(calib_func, camera_fpaths, points_fpaths, out
             assert board_edge_len == board_edge_len_1
     r_arr, t_arr = calibrate_pairwise_extrinsics(calib_func, img_pts_arr, fnames_arr, k_arr, d_arr,
                                                  camera_resolution, board_shape, board_edge_len)
+    print("R_arr")
+    print(r_arr)
+    print("T_arr")
+    print(t_arr)
     save_scene(out_fpath, k_arr, d_arr, r_arr, t_arr, camera_resolution)
 
 

@@ -200,6 +200,12 @@ def calibrate_pairwise_extrinsics(calib_func, img_pts_arr, fnames_arr, k_arr, d_
         #       is given by R^-1.
         #       The inverse of a rotation matrix is also its transpose.
         # https://en.wikipedia.org/wiki/Camera_resectioning#Extrinsic_parameters
+
+        print("R Opencv")
+        print(r)
+        print(t)
+        print("T Opencv")
+
         R2 = r @ R1
         T2 = r @ T1 + t
         # Update and add to list
