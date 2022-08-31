@@ -228,7 +228,7 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
 
     ## For rotating c1 and c2
     def init_encoder_err_weight(m):
-        return (1/(2*np.pi*102000))**2
+        return ((2*np.pi*102000))**2
 
     m.enc_err_weight = Param(initialize=init_encoder_err_weight, mutable=True, within=Any)
 
@@ -256,7 +256,7 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
     m.meas_enc = Param(m.N, m.C, initialize=init_encoder_measurements, within=Any)
 
     # ===== VARIABLES =====
-    m.x = Var(m.N, m.P)  # position
+    m.x = Var(m.N, m.P, initialize=0.0)  # position # number of pose parameters (x, y, z, phi_1..n, theta_1..n, psi_1..n)
     m.dx = Var(m.N, m.P)  # velocity
     m.ddx = Var(m.N, m.P)  # acceleration
     #m.alpha = Var(m.N) #CamA position
@@ -350,7 +350,7 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
         # project
         K, D, R, t = K_arr[c - 1], D_arr[c - 1], R_arr[c - 1], t_arr[c - 1]
 
-        R =  R @ rot_z(encoder_arr[n,c])
+       # R =  R @ rot_z(encoder_arr[n,c])
 
         x, y, z = m.poses[n, l, 1], m.poses[n, l, 2], m.poses[n, l, 3]
         if (markers[l - 1] == "neck"):
@@ -374,7 +374,8 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
                         # slack_meas_err += redescending_loss(m.meas_err_weight[n, c, l] * m.slack_meas[n, c, l, d2], 3, 5, 15)
                         slack_meas_err += abs(m.meas_err_weight[n, c, l] * m.slack_meas[n, c, l, d2]) 
             # Encoder Measurement Error
-            enc_err += abs(m.enc_err_weight * (m.x[-2] - m.meas_enc[n,1]) + m.enc_err_weight * (m.x[-1] - m.meas_enc[n,2])) 
+            for  p in range(49, 50):
+                enc_err += abs(m.enc_err_weight * (m.x[n, p] - m.meas_enc[n,1]) + m.enc_err_weight * (m.x[n, p] - m.meas_enc[n,2])) 
 
         return slack_meas_err + slack_model_err + enc_err
 
