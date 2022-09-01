@@ -68,8 +68,8 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
             rot_dict[part] = rot_z(psi[i]) @ rot_dict[part] # Add z rotation if joint is free to rotate about z axis
 
         # All parts need to be rotated into Inertial frame (aligned with CamA @ t0)
-        #rot_dict[part] = rot_z(alpha) @ rot_dict[part] # Rotation about Z axis by alpha (CamA rotation angle)
-        #rot_dict[part] = rot_z(beta) @ rot_dict[part] # Rotation about Z axis by alpha (CamA rotation angle)
+        rot_dict[part] = rot_z(alpha) @ rot_dict[part] # Rotation about Z axis by alpha (CamA rotation angle)
+        rot_dict[part] = rot_z(beta) @ rot_dict[part] # Rotation about Z axis by alpha (CamA rotation angle)
 
         rot_dict[part + "_i"] = rot_dict[part].T
         i += 1
@@ -105,7 +105,7 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
     t_poses_mat = sp.Matrix(t_poses)
 
     func_map = {"sin": sin, "cos": cos, "ImmutableDenseMatrix": np.array}
-    sym_list = [x, y, z, *phi, *theta, *psi]
+    sym_list = [x, y, z, *phi, *theta, *psi, alpha, beta]
     pose_to_3d = sp.lambdify(sym_list, t_poses_mat, modules=[func_map])
     pos_funcs = []
 
@@ -162,9 +162,8 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
     h = 1 / 200  # timestep: 1/(2 x framerate)?
     start_frame = args.start_frame  # 50
     N = args.end_frame - args.start_frame
-    P = 3 + len(phi) + len(theta) + len(psi)
-    P2 = 2
-    #P = 3 + len(phi) + len(theta) + len(psi) +2 #For rotating C1 and C2
+    #P = 3 + len(phi) + len(theta) + len(psi)
+    P = 3 + len(phi) + len(theta) + len(psi) + 2 #For rotating C1 and C2
     L = len(pos_funcs)
     C = len(K_arr)
     D2 = 2 #What is this number
@@ -213,7 +212,6 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
     # ===== SETS =====
     m.N = RangeSet(N)  # number of timesteps in trajectory
     m.P = RangeSet(P)  # number of pose parameters (x, y, z, phi_1..n, theta_1..n, psi_1..n)
-    m.P2 = RangeSet(P2)
     m.L = RangeSet(L)  # number of labels
     m.C = RangeSet(C)  # number of cameras
     m.D2 = RangeSet(D2)  # dimensionality of measurements
@@ -231,9 +229,7 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
 
     ## For rotating c1 and c2
     def init_encoder_err_weight(m):
-        #return ((2*np.pi*102000))**2
-        return 1
-
+        return ((2*np.pi*102000))**2
 
     m.enc_err_weight = Param(initialize=init_encoder_err_weight, mutable=True, within=Any)
 
@@ -244,11 +240,6 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
         return 0.002
 
     m.model_err_weight = Param(m.P, initialize=init_model_weights, within=Any)
-
-    def init_enc_model_weights(m):
-        return 1/(2*np.pi*102000)**2
-
-    m.enc_model_err_weight = Param(initialize=init_enc_model_weights, within=Any)
 
     m.h = h
 
@@ -269,11 +260,12 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
     m.x = Var(m.N, m.P, initialize=0.0)  # position # number of pose parameters (x, y, z, phi_1..n, theta_1..n, psi_1..n)
     m.dx = Var(m.N, m.P)  # velocity
     m.ddx = Var(m.N, m.P)  # acceleration
- 
-    m.x_cam = Var(m.N, m.P2, initialize=0) #Cam position   
-    m.dx_cam = Var(m.N, m.P2, initialize=0) #Cam velocity
-    m.ddx_cam = Var(m.N, m.P2, initialize=0) #Cam acceleration
-
+    #m.alpha = Var(m.N) #CamA position
+    #m.dalpha = Var(m.N) #CamA velocity
+    #m.ddalpha = Var(m.N) #CamA acceleration 
+    #m.beta = Var(m.N) #CamB position
+    #m.dbeta = Var(m.N) #CamB velocity
+    #m.ddbeta = Var(m.N) #CamB acceleration
     m.poses = Var(m.N, m.L, m.D3)
     m.slack_model = Var(m.N, m.P)
     m.slack_meas = Var(m.N, m.C, m.L, m.D2, initialize=0.0) #Update
@@ -331,16 +323,6 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
             return Constraint.Skip
 
     m.integrate_p = Constraint(m.N, m.P, rule=backwards_euler_pos)
-    
-    def enc_backwards_euler_pos(m, n, p):  # position
-        if n > 1:
-            #             return m.x[n,p] == m.x[n-1,p] + m.h*m.dx[n-1,p] + m.h**2 * m.ddx[n-1,p]/2
-            return m.x_cam[n, p] == m.x_cam[n - 1, p] + m.h * m.dx_cam[n, p]
-
-        else:
-            return Constraint.Skip
-
-    m.integrate_enc_p = Constraint(m.N, m.P2, rule=enc_backwards_euler_pos)
 
     def backwards_euler_vel(m, n, p):  # velocity
         if n > 1:
@@ -349,14 +331,6 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
             return Constraint.Skip
 
     m.integrate_v = Constraint(m.N, m.P, rule=backwards_euler_vel)
-
-    def enc_backwards_euler_vel(m, n, p):  # velocity
-        if n > 1:
-            return m.dx_cam[n, p] == m.dx_cam[n - 1, p] + m.h * m.ddx_cam[n, p]
-        else:
-            return Constraint.Skip
-
-    m.integrate_enc_v = Constraint(m.N, m.P2, rule=enc_backwards_euler_vel)
 
     m.angs = ConstraintList()
     for n in range(1, N):
@@ -371,14 +345,7 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
             return Constraint.Skip
 
     m.constant_acc = Constraint(m.N, m.P, rule=constant_acc)
-
-    def enc_constant_acc(m, n, p):
-        if n > 1:
-            return m.ddx_cam[n, p] == m.ddx_cam[n - 1, p] #Add slack?
-        else:
-            return Constraint.Skip
-
-    m.enc_constant_acc = Constraint(m.N, m.P2, rule=enc_constant_acc)
+    #Why no inclusion of psi, theta and phi
 
     # MEASUREMENT
     #TODO: Update measurement_constraints for rotaion
@@ -398,9 +365,7 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
     def obj(m):
         slack_model_err = 0.0
         slack_meas_err = 0.0
-        enc_model_err = 0.0
-        enc_meas_err = 0.0
-
+        enc_err = 0.0
         for n in range(1, N + 1):
             # Model Error
             for p in range(1, P + 1):
@@ -411,19 +376,14 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
                     for d2 in range(1, D2 + 1): #Dimension on measurements
                         # slack_meas_err += redescending_loss(m.meas_err_weight[n, c, l] * m.slack_meas[n, c, l, d2], 3, 5, 15)
                         slack_meas_err += abs(m.meas_err_weight[n, c, l] * m.slack_meas[n, c, l, d2]) 
-            # Encoder Model Error
-            #for p in range(1, P2 + 1):
-            #   enc_model_err += m.enc_model_err_weight ** 2
             # Encoder Measurement Error
-            for  p in range(1, P2 + 1):
-                if p == 1:
-                    #enc_meas_err += abs(m.enc_err_weight * (m.x_cam[n, p] - m.meas_enc[n,1]))
-                    enc_meas_err += abs(m.enc_err_weight * m.x_cam[n, p])
-                else:
-                    #enc_meas_err += abs(m.enc_err_weight * (m.x_cam[n, p] - m.meas_enc[n,2]))
-                    enc_meas_err += abs(m.enc_err_weight * m.x_cam[n, p])
+            #for  p in range(49, 50):
+             #   if p == 49:
+              #      enc_err += abs(m.enc_err_weight * (m.x[n, p] - m.meas_enc[n,1]))
+               # else:
+                #    enc_err += abs(m.enc_err_weight * (m.x[n, p] - m.meas_enc[n,2]))
 
-        return slack_meas_err + slack_model_err + enc_meas_err + enc_model_err
+        return slack_meas_err + slack_model_err + enc_err
 
     m.obj = Objective(rule=obj)
 
@@ -459,7 +419,7 @@ def solve_optimisation(model, exe_path, project_dir, poses) -> None:
     )
 
     result_dir = os.path.join(project_dir, "data", args.project, "results")
-    save_data_rotating(model, file_path=os.path.join(result_dir, 'traj_results.pickle'), poses=poses)
+    save_data(model, file_path=os.path.join(result_dir, 'traj_results.pickle'), poses=poses)
 
 
 # def save_data(file_data, filepath, dict=False):
@@ -493,61 +453,10 @@ def convert_to_dict(m, poses) -> Dict:
     )
     return file_data
 
-def convert_to_dict_rotating(m, poses) -> Dict:
-    x_optimised = []
-    dx_optimised = []
-    ddx_optimised = []
-
-    x_cam_optimised = []
-    dx_cam_optimised = []
-    ddx_cam_optimised = []
-
-    for n in m.N:
-        x_optimised.append([value(m.x[n, p]) for p in m.P])
-        dx_optimised.append([value(m.dx[n, p]) for p in m.P])
-        ddx_optimised.append([value(m.ddx[n, p]) for p in m.P])
-
-        x_cam_optimised.append([value(m.x_cam[n, p]) for p in m.P2])
-        dx_cam_optimised.append([value(m.dx_cam[n, p]) for p in m.P2])
-        ddx_cam_optimised.append([value(m.ddx_cam[n, p]) for p in m.P2])
-
-    x_optimised = np.array(x_optimised)
-    dx_optimised = np.array(dx_optimised)
-    ddx_optimised = np.array(ddx_optimised)
-
-    x_cam_optimised = np.array(x_cam_optimised)
-    dx_cam_optimised = np.array(dx_cam_optimised)
-    ddx_cam_optimised = np.array(ddx_cam_optimised)
-
-    print(poses)
-    print(x_optimised)
-    print(x_cam_optimised)
-    print(dx_cam_optimised)
-    print(ddx_cam_optimised)
-
-    positions = np.array([poses(*states) for states in x_optimised])
-    file_data = dict(
-        positions=positions,
-        x=x_optimised,
-        dx=dx_optimised,
-        ddx=ddx_optimised,
-    )
-    return file_data
 
 def save_data(file_data, file_path, poses, dict=True) -> None:
     if dict:
         file_data = convert_to_dict(file_data, poses)
-
-    os.makedirs(os.path.dirname(file_path), exist_ok=True)
-
-    with open(file_path, 'wb') as f:
-        pickle.dump(file_data, f)
-
-    print(f'save {file_path}')
-
-def save_data_rotating(file_data, file_path, poses, dict=True) -> None:
-    if dict:
-        file_data = convert_to_dict_rotating(file_data, poses)
 
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
 
