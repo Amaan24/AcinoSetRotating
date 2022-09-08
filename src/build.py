@@ -119,7 +119,11 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
     with open(encoder_path, 'rb') as handle:
         encoder_arr = pickle.load(handle)
 
-    encoder_arr = np.zeros((51, 2)) 
+    encoder_arr = np.ones((5001, 2)) #Encoder Count (102000 CPT)
+    for i in range(0, len(encoder_arr)):
+        encoder_arr[i, 0] = 102000 #i*0.001
+        encoder_arr[i, 1] = 52000 #i*0.001
+    #encoder_arr = np.zeros((5001, 2))    
     print(encoder_arr)
 
     K_arr, D_arr, R_arr, t_arr, _ = utils.load_scene(scene_path)
@@ -163,8 +167,6 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
     start_frame = args.start_frame  # 50
     N = args.end_frame - args.start_frame
     P = 3 + len(phi) + len(theta) + len(psi)
-    P2 = 2
-    #P = 3 + len(phi) + len(theta) + len(psi) +2 #For rotating C1 and C2
     L = len(pos_funcs)
     C = len(K_arr)
     D2 = 2 #What is this number
@@ -213,7 +215,6 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
     # ===== SETS =====
     m.N = RangeSet(N)  # number of timesteps in trajectory
     m.P = RangeSet(P)  # number of pose parameters (x, y, z, phi_1..n, theta_1..n, psi_1..n)
-    m.P2 = RangeSet(P2)
     m.L = RangeSet(L)  # number of labels
     m.C = RangeSet(C)  # number of cameras
     m.D2 = RangeSet(D2)  # dimensionality of measurements
@@ -231,8 +232,7 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
 
     ## For rotating c1 and c2
     def init_encoder_err_weight(m):
-        #return ((2*np.pi*102000))**2
-        return 1
+        return ((2*np.pi*102000))**2
 
 
     m.enc_err_weight = Param(initialize=init_encoder_err_weight, mutable=True, within=Any)
@@ -278,6 +278,9 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
     m.slack_model = Var(m.N, m.P)
     m.slack_meas = Var(m.N, m.C, m.L, m.D2, initialize=0.0) #Update
 
+    m.enc_slack_model = Var(m.N, m.C)
+    m.enc_slack_meas = Var(m.N, m.C, initialize=0.0) #Update
+
     # ===== VARIABLES INITIALIZATION =====
     init_x = np.zeros((N, P))
     init_x[:, 0] = x_est  # x
@@ -312,6 +315,13 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
     print("ddx")
     print(init_ddx)
 
+    for n in range(1, N + 1):
+        for c in range(1, C + 1):
+            if n == 1:
+                m.x_cam[n, c] = 0.0
+            else:
+                m.x_cam[n, c] = 0.0
+
     # ===== CONSTRAINTS =====
     # 3D POSE
     def pose_constraint(m, n, l, d3):
@@ -334,9 +344,7 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
     
     def enc_backwards_euler_pos(m, n, p):  # position
         if n > 1:
-            #             return m.x[n,p] == m.x[n-1,p] + m.h*m.dx[n-1,p] + m.h**2 * m.ddx[n-1,p]/2
             return m.x_cam[n, p] == m.x_cam[n - 1, p] + m.h * m.dx_cam[n, p]
-
         else:
             return Constraint.Skip
 
@@ -372,13 +380,13 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
 
     m.constant_acc = Constraint(m.N, m.P, rule=constant_acc)
 
-    def enc_constant_acc(m, n, p):
+    def enc_constant_acc(m, n, c):
         if n > 1:
-            return m.ddx_cam[n, p] == m.ddx_cam[n - 1, p] #Add slack?
+            return m.ddx_cam[n, c] == m.ddx_cam[n - 1, c] + m.enc_slack_model[n, c]
         else:
             return Constraint.Skip
 
-    m.enc_constant_acc = Constraint(m.N, m.P2, rule=enc_constant_acc)
+    m.enc_constant_acc = Constraint(m.N, m.C, rule=enc_constant_acc)
 
     # MEASUREMENT
     #TODO: Update measurement_constraints for rotaion
@@ -395,13 +403,17 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
             return proj_funcs[d2 - 1](x, y, z, K, D, R, t) - m.meas[n, c, l, d2] - m.slack_meas[n, c, l, d2] == 0
     m.measurement = Constraint(m.N, m.C, m.L, m.D2, rule=measurement_constraints)
 
+    def enc_measurement_constraints(m, n, c):
+        return  m.x_cam[n, c] - m.meas_enc[n, c] - m.enc_slack_meas[n, c] == 0
+    m.enc_measurement = Constraint(m.N, m.C, rule=measurement_constraints)
+
     def obj(m):
         slack_model_err = 0.0
         slack_meas_err = 0.0
         enc_model_err = 0.0
         enc_meas_err = 0.0
 
-        for n in range(1, N + 1):
+        for n in range(1, N + 1): #Frame
             # Model Error
             for p in range(1, P + 1):
                 slack_model_err += m.model_err_weight[p] * m.slack_model[n, p] ** 2
@@ -411,17 +423,12 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
                     for d2 in range(1, D2 + 1): #Dimension on measurements
                         # slack_meas_err += redescending_loss(m.meas_err_weight[n, c, l] * m.slack_meas[n, c, l, d2], 3, 5, 15)
                         slack_meas_err += abs(m.meas_err_weight[n, c, l] * m.slack_meas[n, c, l, d2]) 
-            # Encoder Model Error
-            #for p in range(1, P2 + 1):
-            #   enc_model_err += m.enc_model_err_weight ** 2
-            # Encoder Measurement Error
-            for  p in range(1, P2 + 1):
-                if p == 1:
-                    #enc_meas_err += abs(m.enc_err_weight * (m.x_cam[n, p] - m.meas_enc[n,1]))
-                    enc_meas_err += abs(m.enc_err_weight * m.x_cam[n, p])
-                else:
-                    #enc_meas_err += abs(m.enc_err_weight * (m.x_cam[n, p] - m.meas_enc[n,2]))
-                    enc_meas_err += abs(m.enc_err_weight * m.x_cam[n, p])
+            # Encoder Error
+            for c in range(1, C + 1): # Encoder/Cameras
+                # Encoder Model Error
+                enc_model_err += m.enc_model_err_weight * m.enc_slack_model[n, c] ** 2
+                # Encoder Measurement Error
+                enc_meas_err += m.enc_err_weight * m.slack_meas[n ,c] ** 2
 
         return slack_meas_err + slack_model_err + enc_meas_err + enc_model_err
 

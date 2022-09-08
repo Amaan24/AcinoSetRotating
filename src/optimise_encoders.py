@@ -28,98 +28,97 @@ def build_model(project_dir) -> ConcreteModel:
     with open(encoder_path, 'rb') as handle:
         encoder_arr = pickle.load(handle)
 
-    encoder_arr = np.ones((5001, 2))
+    encoder_arr = np.ones((5001, 2)) #Encoder Count (102000 CPT)
     for i in range(0, len(encoder_arr)):
-        encoder_arr[i, 0] = 102000 #i*0.001
-        encoder_arr[i, 1] = 102000 #i*0.001
+        encoder_arr[i, 0] = i
+        encoder_arr[i, 1] = i
     #encoder_arr = np.zeros((5001, 2))    
     print(encoder_arr)
 
-    def get_enc_meas(n, p):
-        return encoder_arr[n, p]
+    def get_enc_meas(n, c):
+        return encoder_arr[n, c]
 
-    h = 1/200   # timestep: 1/(2 x framerate)?
-    N = 100
-    P = 2
-    R = 3  # measurement standard deviation
+    h = 1/200  # timestep: 1/(2 x framerate)?
+    N = 100 # No. of timesteps
+    C = 2 # No. of cameras
 
     print("Started Optimisation")
     m = ConcreteModel(name="Encoders")
 
     # ===== SETS =====
     m.N = RangeSet(N)  # number of timesteps in trajectory
-    m.P = RangeSet(P)  # number of pose parameters alpha and beta
+    m.C = RangeSet(C)  # number of pose parameters/cameras (alpha and beta)
 
-    ## For rotating c1 and c2
-    def init_encoder_err_weight(m):
+    def init_encoder_err_weight(m): # Encoder error weight = (2*pi*CPT)^2
         return ((2*np.pi*102000))**2
 
     m.enc_err_weight = Param(initialize=init_encoder_err_weight, mutable=True, within=Any)
 
     def init_enc_model_weights(m):
-        return 1/(2*np.pi*102000)**2
+        return 1/(2*np.pi*102000)**2 # Model error weight = 1/(2*pi*CPT)^2
 
     m.enc_model_err_weight = Param(initialize=init_enc_model_weights, within=Any)
 
     m.h = h
 
-    def init_encoder_measurements(m, n, p):
-        return pc.count_to_rad(get_enc_meas(n-1, p-1))
+    def init_encoder_measurements(m, n, c):
+        #return pc.count_to_rad(get_enc_meas(n-1, c-1))
+        return get_enc_meas(n-1, c-1)
     
-    m.meas_enc = Param(m.N, m.P, initialize=init_encoder_measurements, within=Any)
+    m.meas_enc = Param(m.N, m.C, initialize=init_encoder_measurements, within=Any)
 
     for n in range(1, N + 1):
-        for p in range(1, P + 1):
-            print(m.meas_enc[n , p])
+        for c in range(1, C + 1):
+            print(m.meas_enc[n , c])
 
     # ===== VARIABLES =====
-    m.x_cam = Var(m.N, m.P, initialize=10.0) #Cam position   
-    m.dx_cam = Var(m.N, m.P, initialize=0.0) #Cam velocity
-    m.ddx_cam = Var(m.N, m.P, initialize=0.0) #Cam acceleration
+    m.x_cam = Var(m.N, m.C, initialize=10.0) #Cam position   
+    m.dx_cam = Var(m.N, m.C, initialize=0.0) #Cam velocity
+    m.ddx_cam = Var(m.N, m.C, initialize=0.0) #Cam acceleration
 
-    m.slack_model = Var(m.N, m.P)
-    m.slack_meas = Var(m.N, m.P, initialize=0.0) #Update
+    m.slack_model = Var(m.N, m.C)
+    m.slack_meas = Var(m.N, m.C, initialize=0.0) #Update
 
     for n in range(1, N + 1):
-        for p in range(1, P + 1):
+        for c in range(1, C + 1):
             if n == 1:
-                m.x_cam[n, p] = 0.0
+                m.x_cam[n, c] = 0.0
             else:
-                m.x_cam[n, p] = 0.0
+                m.x_cam[n, c] = 0.0
 
     # ===== CONSTRAINTS =====
-    def enc_backwards_euler_pos(m, n, p):  # position
+    def enc_backwards_euler_pos(m, n, c):  # position
         if n > 1:
-            #             return m.x[n,p] == m.x[n-1,p] + m.h*m.dx[n-1,p] + m.h**2 * m.ddx[n-1,p]/2
-            return m.x_cam[n, p] == m.x_cam[n - 1, p] + m.h * m.dx_cam[n, p]
+            #             return m.x[n,c] == m.x[n-1,c] + m.h*m.dx[n-1,c] + m.h**2 * m.ddx[n-1,c]/2
+            return m.x_cam[n, c] == m.x_cam[n - 1, c] + m.h * m.dx_cam[n, c]
 
         else:
             return Constraint.Skip
 
-    m.integrate_enc_p = Constraint(m.N, m.P, rule=enc_backwards_euler_pos)
+    m.integrate_enc_p = Constraint(m.N, m.C, rule=enc_backwards_euler_pos)
 
-    def enc_backwards_euler_vel(m, n, p):  # velocity
+    def enc_backwards_euler_vel(m, n, c):  # velocity
         if n > 1:
-            return m.dx_cam[n, p] == m.dx_cam[n - 1, p] + m.h * m.ddx_cam[n, p]
+            return m.dx_cam[n, c] == m.dx_cam[n - 1, c] + m.h * m.ddx_cam[n, c]
         else:
             return Constraint.Skip
 
-    m.integrate_enc_v = Constraint(m.N, m.P, rule=enc_backwards_euler_vel)
+    m.integrate_enc_v = Constraint(m.N, m.C, rule=enc_backwards_euler_vel)
 
     # MODEL
-    def enc_constant_acc(m, n, p):
+    def enc_constant_acc(m, n, c):
         if n > 1:
-            return m.ddx_cam[n, p] == m.ddx_cam[n - 1, p] + m.slack_model[n, p]
+            return m.ddx_cam[n, c] == m.ddx_cam[n - 1, c] + m.slack_model[n, c]
         else:
             return Constraint.Skip
 
-    m.enc_constant_acc = Constraint(m.N, m.P, rule=enc_constant_acc)
+    m.enc_constant_acc = Constraint(m.N, m.C, rule=enc_constant_acc)
 
     # MEASUREMENT
 
-    def measurement_constraints(m, n, p):
-        return  m.x_cam[n, p] - m.meas_enc[n, p] - m.slack_meas[n, p] == 0
-    m.measurement = Constraint(m.N, m.P, rule=measurement_constraints)
+    def measurement_constraints(m, n, c):
+        return  m.x_cam[n, c] - m.meas_enc[n, c] - m.slack_meas[n, c] == 0
+    m.measurement = Constraint(m.N, m.C, rule=measurement_constraints)
 
     def obj(m):
         enc_model_err = 0.0
@@ -127,11 +126,11 @@ def build_model(project_dir) -> ConcreteModel:
 
         for n in range(1, N + 1): # Frame
             # Encoder Model Error
-            for p in range(1, P + 1): # Encoder
-               enc_model_err += m.enc_model_err_weight * m.slack_model[n, p] ** 2
+            for c in range(1, C + 1): # Encoder
+               enc_model_err += m.enc_model_err_weight * m.slack_model[n, c] ** 2
             # Encoder Measurement Error
-            for  p in range(1, P + 1): #Encoder
-                    enc_meas_err += m.enc_err_weight * m.slack_meas[n ,p] ** 2
+            for  c in range(1, C + 1): #Encoder
+                    enc_meas_err += m.enc_err_weight * m.slack_meas[n ,c] ** 2
 
 
         return enc_meas_err + enc_model_err
@@ -182,9 +181,9 @@ def convert_to_dict_rotating(m, poses) -> Dict:
     ddx_cam_optimised = []
 
     for n in m.N:
-        x_cam_optimised.append([value(m.x_cam[n, p]) for p in m.P])
-        dx_cam_optimised.append([value(m.dx_cam[n, p]) for p in m.P])
-        ddx_cam_optimised.append([value(m.ddx_cam[n, p]) for p in m.P])
+        x_cam_optimised.append([value(m.x_cam[n, c]) for c in m.C])
+        dx_cam_optimised.append([value(m.dx_cam[n, c]) for c in m.C])
+        ddx_cam_optimised.append([value(m.ddx_cam[n, c]) for c in m.C])
 
     x_cam_optimised = np.array(x_cam_optimised)
     dx_cam_optimised = np.array(dx_cam_optimised)
@@ -197,11 +196,11 @@ def convert_to_dict_rotating(m, poses) -> Dict:
     enc_meas_err = 0.0
     for n in range(1, 101): # Frame
         # Encoder Model Error
-        #for p in range(1, P + 1): # Encoder
+        #for c in range(1, C + 1): # Encoder
         #   enc_model_err += m.enc_model_err_weight ** 2
         # Encoder Measurement Error
-        for  p in range(1, 2): #Encoder
-                enc_meas_err += (value(m.x_cam[n, p]) - value(m.meas_enc[n, p]))**2
+        for  c in range(1, 2): #Encoder
+                enc_meas_err += (value(m.x_cam[n, c]) - value(m.meas_enc[n, c]))**2
     print("Total Error = " + str(enc_meas_err))
 
     file_data = dict(
