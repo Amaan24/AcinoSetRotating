@@ -30,14 +30,13 @@ def build_model(project_dir) -> ConcreteModel:
 
     encoder_arr = np.ones((5001, 2))
     for i in range(0, len(encoder_arr)):
-        encoder_arr[i, 0] = i*0.001
-        encoder_arr[i, 1] = i*0.001
-
-     
+        encoder_arr[i, 0] = 102000 #i*0.001
+        encoder_arr[i, 1] = 102000 #i*0.001
+    #encoder_arr = np.zeros((5001, 2))    
     print(encoder_arr)
 
-    def get_enc_meas(n, c):
-        return encoder_arr[n, c]
+    def get_enc_meas(n, p):
+        return encoder_arr[n, p]
 
     h = 1/200   # timestep: 1/(2 x framerate)?
     N = 100
@@ -47,36 +46,39 @@ def build_model(project_dir) -> ConcreteModel:
     print("Started Optimisation")
     m = ConcreteModel(name="Encoders")
 
-
     # ===== SETS =====
     m.N = RangeSet(N)  # number of timesteps in trajectory
     m.P = RangeSet(P)  # number of pose parameters alpha and beta
 
-
     ## For rotating c1 and c2
     def init_encoder_err_weight(m):
         return ((2*np.pi*102000))**2
-        #return 1.0
 
     m.enc_err_weight = Param(initialize=init_encoder_err_weight, mutable=True, within=Any)
 
     def init_enc_model_weights(m):
-        #return 1/(2*np.pi*102000)**2
-        return 1.0
+        return 1/(2*np.pi*102000)**2
 
     m.enc_model_err_weight = Param(initialize=init_enc_model_weights, within=Any)
 
     m.h = h
 
-    def init_encoder_measurements(m, n,c):
-        return pc.count_to_rad(get_enc_meas(n-1,c-1))
+    def init_encoder_measurements(m, n, p):
+        return pc.count_to_rad(get_enc_meas(n-1, p-1))
     
     m.meas_enc = Param(m.N, m.P, initialize=init_encoder_measurements, within=Any)
 
+    for n in range(1, N + 1):
+        for p in range(1, P + 1):
+            print(m.meas_enc[n , p])
+
     # ===== VARIABLES =====
-    m.x_cam = Var(m.N, m.P, initialize=0.0) #Cam position   
+    m.x_cam = Var(m.N, m.P, initialize=10.0) #Cam position   
     m.dx_cam = Var(m.N, m.P, initialize=0.0) #Cam velocity
     m.ddx_cam = Var(m.N, m.P, initialize=0.0) #Cam acceleration
+
+    m.slack_model = Var(m.N, m.P)
+    m.slack_meas = Var(m.N, m.P, initialize=0.0) #Update
 
     for n in range(1, N + 1):
         for p in range(1, P + 1):
@@ -107,7 +109,7 @@ def build_model(project_dir) -> ConcreteModel:
     # MODEL
     def enc_constant_acc(m, n, p):
         if n > 1:
-            return m.ddx_cam[n, p] == m.ddx_cam[n - 1, p] #Add slack?
+            return m.ddx_cam[n, p] == m.ddx_cam[n - 1, p] + m.slack_model[n, p]
         else:
             return Constraint.Skip
 
@@ -115,17 +117,21 @@ def build_model(project_dir) -> ConcreteModel:
 
     # MEASUREMENT
 
+    def measurement_constraints(m, n, p):
+        return  m.x_cam[n, p] - m.meas_enc[n, p] - m.slack_meas[n, p] == 0
+    m.measurement = Constraint(m.N, m.P, rule=measurement_constraints)
+
     def obj(m):
         enc_model_err = 0.0
         enc_meas_err = 0.0
 
         for n in range(1, N + 1): # Frame
             # Encoder Model Error
-            #for p in range(1, P + 1): # Encoder
-            #   enc_model_err += m.enc_model_err_weight ** 2
+            for p in range(1, P + 1): # Encoder
+               enc_model_err += m.enc_model_err_weight * m.slack_model[n, p] ** 2
             # Encoder Measurement Error
             for  p in range(1, P + 1): #Encoder
-                    enc_meas_err += m.enc_err_weight * (m.x_cam[n, p] - m.meas_enc[n, p])**2
+                    enc_meas_err += m.enc_err_weight * m.slack_meas[n ,p] ** 2
 
 
         return enc_meas_err + enc_model_err
@@ -188,7 +194,15 @@ def convert_to_dict_rotating(m, poses) -> Dict:
     print(dx_cam_optimised)
     print(ddx_cam_optimised)
 
-    print(m.obj.value)
+    enc_meas_err = 0.0
+    for n in range(1, 101): # Frame
+        # Encoder Model Error
+        #for p in range(1, P + 1): # Encoder
+        #   enc_model_err += m.enc_model_err_weight ** 2
+        # Encoder Measurement Error
+        for  p in range(1, 2): #Encoder
+                enc_meas_err += (value(m.x_cam[n, p]) - value(m.meas_enc[n, p]))**2
+    print("Total Error = " + str(enc_meas_err))
 
     file_data = dict(
         x=x_cam_optimised,
