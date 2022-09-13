@@ -119,16 +119,16 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
     with open(encoder_path, 'rb') as handle:
         encoder_arr = pickle.load(handle)
 
-    encoder_arr = np.ones((5001, 2)) #Encoder Count (102000 CPT)
-    for i in range(0, len(encoder_arr)):
-        encoder_arr[i, 0] = 102000 #i*0.001
-        encoder_arr[i, 1] = 52000 #i*0.001
+    encoder_arr = np.ones((10001, 2)) #Encoder Count (102000 CPT)
+    #for i in range(0, len(encoder_arr)):
+    #    encoder_arr[i, 0] = 102000 #i*0.001
+    #    encoder_arr[i, 1] = 52000 #i*0.001
     #encoder_arr = np.zeros((5001, 2))    
     print(encoder_arr)
 
     K_arr, D_arr, R_arr, t_arr, _ = utils.load_scene(scene_path)
-    print(R_arr)
-    print(t_arr)
+    #print(R_arr)
+    #print(t_arr)
     D_arr = D_arr.reshape((-1, 4))
 
     markers_dict = dict(enumerate(markers))
@@ -260,19 +260,20 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
 
     m.meas = Param(m.N, m.C, m.L, m.D2, initialize=init_measurements_df, within=Any)
 
-    def init_encoder_measurements(m, n,c):
-        return pc.count_to_rad(get_enc_meas(n-1,c-1))
+    def init_encoder_measurements(m, n, c):
+        #return pc.count_to_rad(get_enc_meas(n-1, c-1))
+        return get_enc_meas(n-1, c-1)
     
     m.meas_enc = Param(m.N, m.C, initialize=init_encoder_measurements, within=Any)
 
     # ===== VARIABLES =====
-    m.x = Var(m.N, m.P, initialize=0.0)  # position # number of pose parameters (x, y, z, phi_1..n, theta_1..n, psi_1..n)
+    m.x = Var(m.N, m.P, initialize=1.0)  # position # number of pose parameters (x, y, z, phi_1..n, theta_1..n, psi_1..n)
     m.dx = Var(m.N, m.P)  # velocity
     m.ddx = Var(m.N, m.P)  # acceleration
  
-    m.x_cam = Var(m.N, m.P2, initialize=0) #Cam position   
-    m.dx_cam = Var(m.N, m.P2, initialize=0) #Cam velocity
-    m.ddx_cam = Var(m.N, m.P2, initialize=0) #Cam acceleration
+    m.x_cam = Var(m.N, m.C, initialize=0) #Cam position   
+    m.dx_cam = Var(m.N, m.C, initialize=0) #Cam velocity
+    m.ddx_cam = Var(m.N, m.C, initialize=0) #Cam acceleration
 
     m.poses = Var(m.N, m.L, m.D3)
     m.slack_model = Var(m.N, m.P)
@@ -315,12 +316,13 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
     print("ddx")
     print(init_ddx)
 
+    #Init predicted encoder angles to 0
     for n in range(1, N + 1):
         for c in range(1, C + 1):
             if n == 1:
-                m.x_cam[n, c] = 0.0
+                m.x_cam[n, c] = 1.0
             else:
-                m.x_cam[n, c] = 0.0
+                m.x_cam[n, c] = 1.0
 
     # ===== CONSTRAINTS =====
     # 3D POSE
@@ -348,7 +350,7 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
         else:
             return Constraint.Skip
 
-    m.integrate_enc_p = Constraint(m.N, m.P2, rule=enc_backwards_euler_pos)
+    m.integrate_enc_p = Constraint(m.N, m.C, rule=enc_backwards_euler_pos)
 
     def backwards_euler_vel(m, n, p):  # velocity
         if n > 1:
@@ -364,12 +366,30 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
         else:
             return Constraint.Skip
 
-    m.integrate_enc_v = Constraint(m.N, m.P2, rule=enc_backwards_euler_vel)
+    m.integrate_enc_v = Constraint(m.N, m.C, rule=enc_backwards_euler_vel)
 
     m.angs = ConstraintList()
     for n in range(1, N):
         for i in range(3, 3 * len(positions)):
             m.angs.add(expr=(abs(m.x[n, i]) <= np.pi / 2))
+
+    #Constrain |encoder angles| to be less than 9o degrees
+    m.enc_angs = ConstraintList()
+    for n in range(1, N + 1):
+        for c in range(1, C + 1):
+            m.enc_angs.add(expr=(abs(m.x_cam[n, c]) <= np.pi / 4))
+
+    #Constrain |encoder velocities| to be less than 25 degrees/sec
+    m.enc_vels = ConstraintList()
+    for n in range(1, N + 1):
+        for c in range(1, C + 1):
+            m.enc_vels.add(expr=(abs(m.dx_cam[n, c]) <= 0.5))
+
+    #Constrain |encoder accs| to be less than 6 degrees/sec^2
+    m.enc_accs = ConstraintList()
+    for n in range(1, N + 1):
+        for c in range(1, C + 1):
+            m.enc_accs.add(expr=(abs(m.ddx_cam[n, c]) <= 0.2))
 
     # MODEL
     def constant_acc(m, n, p):
@@ -394,7 +414,7 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
         # project
         K, D, R, t = K_arr[c - 1], D_arr[c - 1], R_arr[c - 1], t_arr[c - 1]
 
-       # R =  R @ rot_z(encoder_arr[n,c])
+        #R =  R @ rot_z(m.meas_enc[n,c])
 
         x, y, z = m.poses[n, l, 1], m.poses[n, l, 2], m.poses[n, l, 3]
         if (markers[l - 1] == "neck"):
@@ -405,7 +425,7 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
 
     def enc_measurement_constraints(m, n, c):
         return  m.x_cam[n, c] - m.meas_enc[n, c] - m.enc_slack_meas[n, c] == 0
-    m.enc_measurement = Constraint(m.N, m.C, rule=measurement_constraints)
+    m.enc_measurement = Constraint(m.N, m.C, rule=enc_measurement_constraints)
 
     def obj(m):
         slack_model_err = 0.0
@@ -415,20 +435,20 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
 
         for n in range(1, N + 1): #Frame
             # Model Error
-            for p in range(1, P + 1):
-                slack_model_err += m.model_err_weight[p] * m.slack_model[n, p] ** 2
+            #for p in range(1, P + 1):
+            #    slack_model_err += m.model_err_weight[p] * m.slack_model[n, p] ** 2
             # Measurement Error
-            for l in range(1, L + 1): #labels
-                for c in range(1, C + 1): #cameras
-                    for d2 in range(1, D2 + 1): #Dimension on measurements
-                        # slack_meas_err += redescending_loss(m.meas_err_weight[n, c, l] * m.slack_meas[n, c, l, d2], 3, 5, 15)
-                        slack_meas_err += abs(m.meas_err_weight[n, c, l] * m.slack_meas[n, c, l, d2]) 
+            #for l in range(1, L + 1): #labels
+            #    for c in range(1, C + 1): #cameras
+            #        for d2 in range(1, D2 + 1): #Dimension on measurements
+            #            # slack_meas_err += redescending_loss(m.meas_err_weight[n, c, l] * m.slack_meas[n, c, l, d2], 3, 5, 15)
+            #            slack_meas_err += abs(m.meas_err_weight[n, c, l] * m.slack_meas[n, c, l, d2]) 
             # Encoder Error
             for c in range(1, C + 1): # Encoder/Cameras
                 # Encoder Model Error
                 enc_model_err += m.enc_model_err_weight * m.enc_slack_model[n, c] ** 2
                 # Encoder Measurement Error
-                enc_meas_err += m.enc_err_weight * m.slack_meas[n ,c] ** 2
+                enc_meas_err += abs(m.enc_err_weight * m.enc_slack_meas[n ,c])**2
 
         return slack_meas_err + slack_model_err + enc_meas_err + enc_model_err
 
@@ -514,9 +534,9 @@ def convert_to_dict_rotating(m, poses) -> Dict:
         dx_optimised.append([value(m.dx[n, p]) for p in m.P])
         ddx_optimised.append([value(m.ddx[n, p]) for p in m.P])
 
-        x_cam_optimised.append([value(m.x_cam[n, p]) for p in m.P2])
-        dx_cam_optimised.append([value(m.dx_cam[n, p]) for p in m.P2])
-        ddx_cam_optimised.append([value(m.ddx_cam[n, p]) for p in m.P2])
+        x_cam_optimised.append([value(m.x_cam[n, p]) for p in m.C])
+        dx_cam_optimised.append([value(m.dx_cam[n, p]) for p in m.C])
+        ddx_cam_optimised.append([value(m.ddx_cam[n, p]) for p in m.C])
 
     x_optimised = np.array(x_optimised)
     dx_optimised = np.array(dx_optimised)

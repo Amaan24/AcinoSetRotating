@@ -72,7 +72,7 @@ def build_model(project_dir) -> ConcreteModel:
             print(m.meas_enc[n , c])
 
     # ===== VARIABLES =====
-    m.x_cam = Var(m.N, m.C, initialize=10.0) #Cam position   
+    m.x_cam = Var(m.N, m.C, initialize=0.0) #Cam position   
     m.dx_cam = Var(m.N, m.C, initialize=0.0) #Cam velocity
     m.ddx_cam = Var(m.N, m.C, initialize=0.0) #Cam acceleration
 
