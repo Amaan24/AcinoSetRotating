@@ -407,7 +407,7 @@ class PageTwo(tk.Frame):
             skelly_dir = os.path.join("C://Users//user-pc//Documents//Scripts//amaan", "skeletons", ("new_human.pickle"))
             results_dir = os.path.join("C://Users//user-pc//Documents//Scripts//amaan", "data", "results", "cheetah_final", ("fte.pickle"))
 
-            skelly_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//skeletons", ("new_human.pickle"))
+            skelly_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//skeletons", ("human_no_chin.pickle"))
             results_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//data", "19Aug2022", "results", ("traj_results.pickle"))
 
 
@@ -415,23 +415,27 @@ class PageTwo(tk.Frame):
             results = an.load_pickle(results_dir)
             links = skel_dict["links"]
             markers = skel_dict["markers"]
+            print(links)
+            print(markers)
 
-            links = [["chin", "forehead"], ["forehead", "neck"], 
-                ["neck", "shoulder1"], ["neck", "shoulder2"],
-                ["shoulder1", "hip1"], ["shoulder2", "hip2"],
-                ["shoulder1", "elbow1"], ["shoulder2", "elbow2"],
-                ["elbow1", "wrist1"], ["elbow2", "wrist2"],
-                ["hip1", "hip2"], ["hip1", "knee1"], ["hip2", "knee2"],
-                ["knee1", "ankle1"], ["knee2", "ankle2"]]
+ #           links = [["chin", "forehead"], ["forehead", "neck"], 
+ #               ["neck", "shoulder1"], ["neck", "shoulder2"],
+ #               ["shoulder1", "hip1"], ["shoulder2", "hip2"],
+ #               ["shoulder1", "elbow1"], ["shoulder2", "elbow2"],
+ #               ["elbow1", "wrist1"], ["elbow2", "wrist2"],
+ #               ["hip1", "hip2"], ["hip1", "knee1"], ["hip2", "knee2"],
+ #               ["knee1", "ankle1"], ["knee2", "ankle2"]]
+
             positions = {"chin": skel_dict["positions"]["chin"], "forehead": skel_dict["positions"]["forehead"], 
-                "neck": skel_dict["positions"]["neck"],
+  #              "neck": skel_dict["positions"]["neck"],
                 "shoulder1": skel_dict["positions"]["shoulder1"], "shoulder2": skel_dict["positions"]["shoulder2"],
                 "elbow1": skel_dict["positions"]["elbow1"], "elbow2": skel_dict["positions"]["elbow2"],
                 "hip1": skel_dict["positions"]["hip1"], "hip2": skel_dict["positions"]["hip2"],
                 "wrist1": skel_dict["positions"]["wrist1"], "wrist2": skel_dict["positions"]["wrist2"],
                 "knee1": skel_dict["positions"]["knee1"], "knee2": skel_dict["positions"]["knee2"],
                 "ankle1": skel_dict["positions"]["ankle1"], "ankle2": skel_dict["positions"]["ankle2"]}
-            dofs = {"chin": [1,1,1], "forehead": [0,0,0], "neck": [0,1,0], 
+ #           dofs = {"chin": [1,1,1], "forehead": [0,0,0], "neck": [0,1,0],
+            dofs = {"chin": [1,1,1], "forehead": [0,0,0], 
                 "shoulder1": [1,1,1], "shoulder2": [1,1,1],
                 "elbow1": [1,1,1], "elbow2": [1,1,1],
                 "wrist1": [0,0,0], "wrist2": [0,0,0],
@@ -439,8 +443,8 @@ class PageTwo(tk.Frame):
                 "knee1": [0,1,0], "knee2": [0,1,0],
                 "ankle1": [0,1,0], "ankle2": [0,1,0]}
 
-            markers = ["chin", "forehead", "neck", "shoulder1", "shoulder2",
-                "hip1", "hip2", "elbow1", "elbow2", "wrist1", "wrist2", "knee1", "knee2", "ankle1", "ankle2"]
+            #markers = ["chin", "forehead", "neck", "shoulder1", "shoulder2",
+            #    "hip1", "hip2", "elbow1", "elbow2", "wrist1", "wrist2", "knee1", "knee2", "ankle1", "ankle2"]
 
             #enc_arr = an.load_pickle("C://Users//user-pc//Desktop//AcinoSetRotating//data//encoder_values//enc_vals.pickle")
             

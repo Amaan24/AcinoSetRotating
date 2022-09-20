@@ -104,11 +104,38 @@ def load_scene(fpath):
 
 def create_dlc_points_2d_file(dlc_df_fpaths):
     dfs = []
+    print(dlc_df_fpaths)
     for path in dlc_df_fpaths:
         dlc_df = pd.read_hdf(path)
         dlc_df=dlc_df.droplevel([0], axis=1).swaplevel(0,1,axis=1).T.unstack().T.reset_index().rename({'level_0':'frame'}, axis=1)
         dlc_df.columns.name = ''
         dfs.append(dlc_df)
+    for df in dfs:
+        for ind in df.index:
+            df['frame'][ind] = int(df['level_2'][ind].translate({ord(i): None for i in 'img.png'}))
+    #create new dataframe
+    dlc_df = pd.DataFrame(columns=['frame', 'camera', 'marker', 'x', 'y', 'likelihood'])
+    for i, df in enumerate(dfs):
+        df["camera"] = i
+        df["likelihood"] = 1
+        df.rename(columns={"bodyparts":"marker"}, inplace=True)
+        dlc_df = pd.concat([dlc_df, df], sort=True, ignore_index=True)
+
+    dlc_df = dlc_df[['frame', 'camera', 'marker', 'x', 'y', 'likelihood']]
+    return dlc_df
+
+'''
+def create_dlc_points_2d_file(dlc_df_fpaths):
+    dfs = []
+    print(dlc_df_fpaths)
+    for path in dlc_df_fpaths:
+        dlc_df = pd.read_hdf(path)
+        print(dlc_df)
+        dlc_df=dlc_df.droplevel([0], axis=1).swaplevel(0,1,axis=1).T.unstack().T.reset_index().rename({'level_0':'frame'}, axis=1)
+        print(dlc_df)
+        dlc_df.columns.name = ''
+        dfs.append(dlc_df)
+    exit()
     #create new dataframe
     dlc_df = pd.DataFrame(columns=['frame', 'camera', 'marker', 'x', 'y', 'likelihood'])
     for i, df in enumerate(dfs):
@@ -118,3 +145,5 @@ def create_dlc_points_2d_file(dlc_df_fpaths):
 
     dlc_df = dlc_df[['frame', 'camera', 'marker', 'x', 'y', 'likelihood']]
     return dlc_df
+
+'''
