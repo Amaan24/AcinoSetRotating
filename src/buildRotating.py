@@ -68,7 +68,7 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
             rot_dict[part] = rot_z(psi[i]) @ rot_dict[part] # Add z rotation if joint is free to rotate about z axis
 
         # All parts need to be rotated into Inertial frame (aligned with CamA @ t0)
-        #rot_dict[part] = rot_z(alpha) @ rot_dict[part] # Rotation about Z axis by alpha (CamA rotation angle)
+        rot_dict[part] = rot_z(alpha) @ rot_dict[part] # Rotation about Z axis by alpha (CamA rotation angle)
         #rot_dict[part] = rot_z(beta) @ rot_dict[part] # Rotation about Z axis by alpha (CamA rotation angle)
 
         rot_dict[part + "_i"] = rot_dict[part].T
@@ -105,7 +105,7 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
     t_poses_mat = sp.Matrix(t_poses)
 
     func_map = {"sin": sin, "cos": cos, "ImmutableDenseMatrix": np.array}
-    sym_list = [x, y, z, *phi, *theta, *psi]
+    sym_list = [x, y, z, *phi, *theta, *psi, alpha]
     pose_to_3d = sp.lambdify(sym_list, t_poses_mat, modules=[func_map])
     pos_funcs = []
 
@@ -115,12 +115,17 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
 
     scene_path = os.path.join(project_dir, "data", args.project, "extrinsic_calib", "2_cam_scene_sba.json")
 
-    encoder_path = os.path.join(project_dir, "data", args.project, "extrinsic_calib", "encoder_data.pkl")
+    encoder_path = os.path.join(project_dir, "data", args.project, "synced_data.pkl")
     with open(encoder_path, 'rb') as handle:
-        encoder_arr = pickle.load(handle)
+        synced_data = pickle.load(handle)
 
-    encoder_arr = np.ones((10001, 2)) #Encoder Count (102000 CPT)\
-    encoder_arr = np.zeros((10001, 2))
+    enc1 = np.reshape(synced_data['enc1tick'], (-1, 1))
+    enc2 = np.reshape(synced_data['enc2tick'], (-1, 1))
+
+    encoder_arr = np.hstack((enc1, enc2))
+
+    #encoder_arr = np.ones((10001, 2)) #Encoder Count (102000 CPT)\
+    #encoder_arr = np.zeros((10001, 2))
     #for i in range(0, len(encoder_arr)):
     #    encoder_arr[i, 0] = 102000 #i*0.001
     #    encoder_arr[i, 1] = 52000 #i*0.001
@@ -128,7 +133,7 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
     print(encoder_arr)
 
     K_arr, D_arr, R_arr, t_arr, _ = utils.load_scene(scene_path)
-    print(R_arr[0]@np_rot_z(0))
+    #print(R_arr[0]@np_rot_z(0))
     #print(t_arr)
     D_arr = D_arr.reshape((-1, 4))
 
@@ -167,7 +172,7 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
     h = 1 / 100  # timestep: 1/framerate
     start_frame = args.start_frame  # 50
     N = args.end_frame - args.start_frame
-    P = 3 + len(phi) + len(theta) + len(psi)
+    P = 3 + len(phi) + len(theta) + len(psi) + 1
     L = len(pos_funcs)
     C = len(K_arr)
     D2 = 2 #What is this number
@@ -443,14 +448,14 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
             for l in range(1, L + 1): #labels
                 for c in range(1, C + 1): #cameras
                     for d2 in range(1, D2 + 1): #Dimension on measurements
-                        # slack_meas_err += redescending_loss(m.meas_err_weight[n, c, l] * m.slack_meas[n, c, l, d2], 3, 5, 15)
-                        slack_meas_err += m.meas_err_weight[n, c, l] * m.slack_meas[n, c, l, d2] **2
+                        slack_meas_err += redescending_loss(m.meas_err_weight[n, c, l] * m.slack_meas[n, c, l, d2], 3, 5, 15)
+                        #slack_meas_err += m.meas_err_weight[n, c, l] * m.slack_meas[n, c, l, d2] **2
             # Encoder Error
             for c in range(1, C + 1): # Encoder/Cameras
                 # Encoder Model Error
                 enc_model_err += m.enc_model_err_weight * m.enc_slack_model[n, c] ** 2
                 # Encoder Measurement Error
-                #enc_meas_err += m.enc_err_weight * m.enc_slack_meas[n ,c]**2 #Assuming minimal encoder error
+                #enc_meas_err += m.enc_err_weight * m.enc_slack_meas[n ,c]**2 #Removed - Assuming minimal encoder meas error
 
         return slack_meas_err + slack_model_err + enc_meas_err + enc_model_err
 
@@ -526,30 +531,35 @@ def convert_to_dict_rotating(m, poses) -> Dict:
     x_optimised = []
     dx_optimised = []
     ddx_optimised = []
+    x_model_slack_optimised = []
 
     x_cam_optimised = []
     dx_cam_optimised = []
     ddx_cam_optimised = []
+    x_cam_model_slack_optimised = []
 
     for n in m.N:
         x_optimised.append([value(m.x[n, p]) for p in m.P])
         dx_optimised.append([value(m.dx[n, p]) for p in m.P])
         ddx_optimised.append([value(m.ddx[n, p]) for p in m.P])
+        x_model_slack_optimised.append([value(m.slack_model[n, p]) for p in m.P])
 
-        x_cam_optimised.append([value(m.x_cam[n, p]) for p in m.C])
-        dx_cam_optimised.append([value(m.dx_cam[n, p]) for p in m.C])
-        ddx_cam_optimised.append([value(m.ddx_cam[n, p]) for p in m.C])
+        x_cam_optimised.append([value(m.x_cam[n, c]) for c in m.C])
+        dx_cam_optimised.append([value(m.dx_cam[n, c]) for c in m.C])
+        ddx_cam_optimised.append([value(m.ddx_cam[n, c]) for c in m.C])
+        x_cam_model_slack_optimised.append([value(m.enc_slack_model[n, c]) for c in m.C])
 
     x_optimised = np.array(x_optimised)
     dx_optimised = np.array(dx_optimised)
     ddx_optimised = np.array(ddx_optimised)
+    x_model_slack_optimised = np.array(x_model_slack_optimised)
 
     x_cam_optimised = np.array(x_cam_optimised)
     dx_cam_optimised = np.array(dx_cam_optimised)
     ddx_cam_optimised = np.array(ddx_cam_optimised)
+    x_cam_model_slack_optimised = np.array(x_cam_model_slack_optimised)
 
     print(poses)
-    print(x_optimised)
     print(x_cam_optimised)
     print(dx_cam_optimised)
     print(ddx_cam_optimised)
@@ -560,6 +570,11 @@ def convert_to_dict_rotating(m, poses) -> Dict:
         x=x_optimised,
         dx=dx_optimised,
         ddx=ddx_optimised,
+        x_model_slack=x_model_slack_optimised,
+        x_cam=x_cam_optimised, 
+        dx_cam=dx_cam_optimised, 
+        ddx_cam=ddx_cam_optimised,
+        x_cam_model_slack=x_cam_model_slack_optimised
     )
     return file_data
 

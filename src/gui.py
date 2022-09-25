@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import pickle
 import analyse as an
-import build as bd
+import buildRotating as bd
 from matplotlib.animation import FuncAnimation, PillowWriter, Animation
 
 class Application(tk.Tk):
@@ -445,8 +445,6 @@ class PageTwo(tk.Frame):
 
             #markers = ["chin", "forehead", "neck", "shoulder1", "shoulder2",
             #    "hip1", "hip2", "elbow1", "elbow2", "wrist1", "wrist2", "knee1", "knee2", "ankle1", "ankle2"]
-
-            #enc_arr = an.load_pickle("C://Users//user-pc//Desktop//AcinoSetRotating//data//encoder_values//enc_vals.pickle")
             
             positions = results["positions"]
             """
