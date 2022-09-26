@@ -130,7 +130,8 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
     #    encoder_arr[i, 0] = 102000 #i*0.001
     #    encoder_arr[i, 1] = 52000 #i*0.001
     #encoder_arr = np.zeros((5001, 2))    
-    print(encoder_arr)
+    print(encoder_arr[10500])
+    print(encoder_arr[10510])
 
     K_arr, D_arr, R_arr, t_arr, _ = utils.load_scene(scene_path)
     #print(R_arr[0]@np_rot_z(0))
@@ -267,8 +268,8 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
     m.meas = Param(m.N, m.C, m.L, m.D2, initialize=init_measurements_df, within=Any)
 
     def init_encoder_measurements(m, n, c):
-        #return pc.count_to_rad(get_enc_meas(n-1, c-1))
-        return get_enc_meas(n-1, c-1)
+        return pc.count_to_rad(get_enc_meas(n + start_frame - 1, c - 1))
+        #return get_enc_meas(n + start_frame -1, c-1)
     
     m.meas_enc = Param(m.N, m.C, initialize=init_encoder_measurements, within=Any)
 

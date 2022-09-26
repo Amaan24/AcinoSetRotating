@@ -101,7 +101,8 @@ def load_scene(fpath):
     return k_arr, d_arr, r_arr, t_arr, camera_resolution
 
 
-
+"""
+# For hand-labelled .h5 file
 def create_dlc_points_2d_file(dlc_df_fpaths):
     dfs = []
     print(dlc_df_fpaths)
@@ -123,8 +124,8 @@ def create_dlc_points_2d_file(dlc_df_fpaths):
 
     dlc_df = dlc_df[['frame', 'camera', 'marker', 'x', 'y', 'likelihood']]
     return dlc_df
-
-'''
+"""
+# for DLC labelled .h5 file
 def create_dlc_points_2d_file(dlc_df_fpaths):
     dfs = []
     print(dlc_df_fpaths)
@@ -135,7 +136,7 @@ def create_dlc_points_2d_file(dlc_df_fpaths):
         print(dlc_df)
         dlc_df.columns.name = ''
         dfs.append(dlc_df)
-    exit()
+
     #create new dataframe
     dlc_df = pd.DataFrame(columns=['frame', 'camera', 'marker', 'x', 'y', 'likelihood'])
     for i, df in enumerate(dfs):
@@ -146,4 +147,3 @@ def create_dlc_points_2d_file(dlc_df_fpaths):
     dlc_df = dlc_df[['frame', 'camera', 'marker', 'x', 'y', 'likelihood']]
     return dlc_df
 
-'''

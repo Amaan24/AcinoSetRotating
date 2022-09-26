@@ -408,7 +408,7 @@ class PageTwo(tk.Frame):
             results_dir = os.path.join("C://Users//user-pc//Documents//Scripts//amaan", "data", "results", "cheetah_final", ("fte.pickle"))
 
             skelly_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//skeletons", ("human_no_chin.pickle"))
-            results_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//data", "19Aug2022", "results", ("traj_results.pickle"))
+            results_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//data", "22Sep2022", "results", ("traj_results.pickle"))
 
 
             skel_dict = bd.load_skeleton(skelly_dir)
