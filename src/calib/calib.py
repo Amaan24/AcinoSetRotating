@@ -132,18 +132,25 @@ def triangulate_points_fisheye(img_pts_1, img_pts_2, k1, d1, r1, t1, k2, d2, r2,
     return pts_3d
 
 #TODO: Update function
-def triangulate_points_fisheye_rotating(img_pts_1, img_pts_2, k1, d1, r1, t1, encVals1, k2, d2, r2, t2, encVals2, frame_nos):
+def triangulate_points_fisheye_rotating(img_pts_1, img_pts_2, k1, d1, rs1, t1, k2, d2, rs2, t2, frame_nos):
     pts_1 = img_pts_1.reshape((-1,1,2))
     pts_2 = img_pts_2.reshape((-1, 1, 2))
     pts_1 = cv2.fisheye.undistortPoints(pts_1, k1, d1)
     pts_2 = cv2.fisheye.undistortPoints(pts_2, k2, d2)
-    for i in enumerate(frame_nos):
-        r1 = r1 @ rot_z(pc.count_to_rad(encVals1[i]))
-        r2 = r2 @ rot_z(pc.count_to_rad(encVals2[i]))
-    p1 = np.hstack((r1, t1))
-    p2 = np.hstack((r2, t2))
-    pts_4d = cv2.triangulatePoints(p1, p2, pts_1, pts_2)
-    pts_3d = (pts_4d[:3] / pts_4d[3]).T
+
+    pts_3d = []
+
+    for i,frame in enumerate(frame_nos):
+        p1 = np.hstack((rs1[int(frame)], t1))
+        p2 = np.hstack((rs2[int(frame)], t2))
+
+        pt_1 = pts_1[i].reshape((2,1))
+        pt_2 = pts_2[i].reshape((2,1))
+
+        pt_4d = cv2.triangulatePoints(p1, p2, pt_1, pt_2)
+        pt_3d = (pt_4d[:3] / pt_4d[3]).T    
+        pts_3d.append(pt_3d)
+   
     return pts_3d
 
 def project_points_fisheye(obj_pts, k, d, r, t):
@@ -445,7 +452,9 @@ def get_pairwise_3d_points_from_df(points_2d_df, k_arr, d_arr, r_arr, t_arr, tri
     points_3d_df = df_pairs[['frame', 'marker', 'x','y','z']].groupby(['frame','marker']).mean().reset_index()
     return points_3d_df
 
-def get_pairwise_3d_points_from_df_rotating(points_2d_df, k_arr, d_arr, r_arr, t_arr, encVals1, encVals2, triangulate_func):
+
+#TODO: Update function
+def get_pairwise_3d_points_from_df_rotating(points_2d_df, k_arr, d_arr, r_arr, t_arr, enc_arr, triangulate_func):
     n_cameras = len(k_arr)
     camera_pairs = list([(i, i+1) for i in range(n_cameras-1)])
     df_pairs = pd.DataFrame(columns=['x','y','z'])
@@ -458,18 +467,38 @@ def get_pairwise_3d_points_from_df_rotating(points_2d_df, k_arr, d_arr, r_arr, t
         d0 = points_2d_df[points_2d_df['camera']==cam_a]
         d1 = points_2d_df[points_2d_df['camera']==cam_b]
         intersection_df = d0.merge(d1, how='inner', on=['frame','marker'], suffixes=('_a', '_b'))
+        print(intersection_df)
         if intersection_df.shape[0] > 0:
             print(f"Found {intersection_df.shape[0]} pairwise points between camera {cam_a} and {cam_b}")
             cam_a_points = np.array(intersection_df[['x_a','y_a']], dtype=np.float).reshape((-1,1,2))
             cam_b_points = np.array(intersection_df[['x_b','y_b']], dtype=np.float).reshape((-1,1,2))
+
+            def np_rot_z(z):
+                c = np.cos(z)
+                s = np.sin(z)
+                return np.array([
+                    [c, s, 0],
+                    [-s, c, 0],
+                    [0, 0, 1]
+                ])
+
+            cam_a_r_arrs = []
+            cam_b_r_arrs = []
+
+            for i in range(0, len(enc_arr)):
+                cam_a_r_arrs.append(r_arr[cam_a] @ np_rot_z(pc.count_to_rad(enc_arr[i, cam_a])))  
+                cam_b_r_arrs.append(r_arr[cam_b] @ np_rot_z(pc.count_to_rad(enc_arr[i, cam_b])))
+
             frame_nos = np.array(intersection_df[['frame']], dtype=np.int16)
+
             print("Frames")
             print(len(frame_nos))
+
             points_3d = triangulate_func(cam_a_points, cam_b_points,
-                                            k_arr[cam_a], d_arr[cam_a], r_arr[cam_a], t_arr[cam_a], encVals1,
-                                            k_arr[cam_b], d_arr[cam_b], r_arr[cam_b], t_arr[cam_b], encVals2,
-                                            frame_nos)
-                                        
+                                            k_arr[cam_a], d_arr[cam_a], cam_a_r_arrs, t_arr[cam_a], 
+                                            k_arr[cam_b], d_arr[cam_b], cam_b_r_arrs, t_arr[cam_b], frame_nos
+                                        )
+            
             intersection_df['x'] = points_3d[:, 0]
             intersection_df['y'] = points_3d[:, 1]
             intersection_df['z'] = points_3d[:, 2]
