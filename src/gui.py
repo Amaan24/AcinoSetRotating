@@ -404,12 +404,14 @@ class PageTwo(tk.Frame):
             currdir = os.getcwd()
             skel_name = (field_name1.get())
 
-            skelly_dir = os.path.join("C://Users//user-pc//Documents//Scripts//amaan", "skeletons", ("new_human.pickle"))
-            results_dir = os.path.join("C://Users//user-pc//Documents//Scripts//amaan", "data", "results", "cheetah_final", ("fte.pickle"))
+            #skelly_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//skeletons", ("new_human.pickle"))
+            #results_dir = os.path.join("C://Users//user-pc//Documents//Scripts//amaan", "data", "results", "cheetah_final", ("fte.pickle"))
 
-            skelly_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//skeletons", ("human_no_chin.pickle"))
+            #skelly_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//skeletons", ("human_no_chin.pickle"))
+            #results_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//data", "22Sep2022", "results", ("traj_results.pickle"))
+
+            skelly_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//skeletons", ("human_sep_2022.pickle"))
             results_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//data", "22Sep2022", "results", ("traj_results.pickle"))
-
 
             skel_dict = bd.load_skeleton(skelly_dir)
             results = an.load_pickle(results_dir)
@@ -418,56 +420,22 @@ class PageTwo(tk.Frame):
             print(links)
             print(markers)
 
- #           links = [["chin", "forehead"], ["forehead", "neck"], 
- #               ["neck", "shoulder1"], ["neck", "shoulder2"],
- #               ["shoulder1", "hip1"], ["shoulder2", "hip2"],
- #               ["shoulder1", "elbow1"], ["shoulder2", "elbow2"],
- #               ["elbow1", "wrist1"], ["elbow2", "wrist2"],
- #               ["hip1", "hip2"], ["hip1", "knee1"], ["hip2", "knee2"],
- #               ["knee1", "ankle1"], ["knee2", "ankle2"]]
-
             positions = {"chin": skel_dict["positions"]["chin"], "forehead": skel_dict["positions"]["forehead"], 
-  #              "neck": skel_dict["positions"]["neck"],
+                "neck": skel_dict["positions"]["neck"],
                 "shoulder1": skel_dict["positions"]["shoulder1"], "shoulder2": skel_dict["positions"]["shoulder2"],
                 "elbow1": skel_dict["positions"]["elbow1"], "elbow2": skel_dict["positions"]["elbow2"],
                 "hip1": skel_dict["positions"]["hip1"], "hip2": skel_dict["positions"]["hip2"],
                 "wrist1": skel_dict["positions"]["wrist1"], "wrist2": skel_dict["positions"]["wrist2"],
                 "knee1": skel_dict["positions"]["knee1"], "knee2": skel_dict["positions"]["knee2"],
                 "ankle1": skel_dict["positions"]["ankle1"], "ankle2": skel_dict["positions"]["ankle2"]}
- #           dofs = {"chin": [1,1,1], "forehead": [0,0,0], "neck": [0,1,0],
-            dofs = {"chin": [1,1,1], "forehead": [0,0,0], 
-                "shoulder1": [1,1,1], "shoulder2": [1,1,1],
-                "elbow1": [1,1,1], "elbow2": [1,1,1],
-                "wrist1": [0,0,0], "wrist2": [0,0,0],
-                "hip1": [1,1,1], "hip2": [1,1,1],
-                "knee1": [0,1,0], "knee2": [0,1,0],
-                "ankle1": [0,1,0], "ankle2": [0,1,0]}
 
-            #markers = ["chin", "forehead", "neck", "shoulder1", "shoulder2",
-            #    "hip1", "hip2", "elbow1", "elbow2", "wrist1", "wrist2", "knee1", "knee2", "ankle1", "ankle2"]
-            
             positions = results["positions"]
-            """
-            for frame in range(len(positions)):
-                for part in range(len(positions[frame])):
-                    xyz = [positions[frame][part][0], positions[frame][part][1], positions[frame][part][2]]
-                    enc_val = int(enc_arr[frame][1])
-                    rad_change = pc.count_to_rad(enc_val)
-                    new_xyz = pc.rotate_point(xyz, rad_change)
-                    positions[frame][part][0], positions[frame][part][1], positions[frame][part][2] = new_xyz[0], new_xyz[1], new_xyz[2]
-            """
+
             for i in range(len(markers)):
-#                enc_val = int(enc_arr[frame][1])
-#                rad_change = pc.count_to_rad(enc_val)
                 point = [positions[frame][i][0], positions[frame][i][1], positions[frame][i][2]]
-#                new_xyz = pc.rotate_point(point,rad_change)
-                new_xyz = pc.rotate_point(point,0)
-#                print('Rotation: {} deg'.format(rad_change*180/np.pi))
-                new_xyz = point
-                pose_dict[markers[i]] = new_xyz
-                print(new_xyz)
-                a.scatter(new_xyz[0], new_xyz[1], new_xyz[2], color= "red")
-            
+                pose_dict[markers[i]] = point
+                a.scatter(point[0], point[1], point[2], color= "red")
+                a.text(point[0], point[1], point[2],  markers[i], size=8, zorder=1, color='k')
             #print(pose_dict)
             
             for link in links:

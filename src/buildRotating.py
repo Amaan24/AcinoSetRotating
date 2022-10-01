@@ -42,6 +42,9 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
     print(dofs)
     markers = skel_dict["markers"]
 
+    #for joint in markers:
+    #    dofs[joint] = [1, 1, 1]
+
     rot_dict = {}
     pose_dict = {}
     
@@ -130,12 +133,8 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
     #    encoder_arr[i, 0] = 102000 #i*0.001
     #    encoder_arr[i, 1] = 52000 #i*0.001
     #encoder_arr = np.zeros((5001, 2))    
-    print(encoder_arr[10500])
-    print(encoder_arr[10510])
 
     K_arr, D_arr, R_arr, t_arr, _ = utils.load_scene(scene_path)
-    #print(R_arr[0]@np_rot_z(0))
-    #print(t_arr)
     D_arr = D_arr.reshape((-1, 4))
 
     markers_dict = dict(enumerate(markers))
@@ -184,7 +183,6 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
     R = 3  # measurement standard deviation
 
     ## TODO: Update estimation of initial points to include rotation!!
-    ## TODO: Update get_pairwise 3d_points_from_df
     triangulate_func = calib.triangulate_points_fisheye_rotating
     #triangulate_func = calib.triangulate_points_fisheye
     points_2d_filtered_df = points_2d_df[points_2d_df['likelihood'] > 0.2]
@@ -198,10 +196,8 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
     # estimate initial points from linear regression of all forehead points??
     # Sets the initial points cv                                                        
     nose_pts = points_3d_df[points_3d_df["marker"] == "forehead"][["x", "y", "z", "frame" ]].values
-    print(nose_pts)
-    print(nose_pts[:, 3])
-    print(nose_pts[:, 0])
-    
+    print(nose_pts.shape)
+
     xs = stats.linregress(nose_pts[:, 3], nose_pts[:, 0])
     ys = stats.linregress(nose_pts[:, 3], nose_pts[:, 1])
     zs = stats.linregress(nose_pts[:, 3], nose_pts[:, 2])
@@ -210,9 +206,7 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
     x_est = np.array([frame_est[i] * (xs.slope) + (xs.intercept) for i in range(len(frame_est))])
     y_est = np.array([frame_est[i] * (ys.slope) + (ys.intercept) for i in range(len(frame_est))])
     z_est = np.array([frame_est[i] * (zs.slope) + (zs.intercept) for i in range(len(frame_est))])
-    print(x_est)
-    # print("x est shape:")
-    # print(x_est.shape)
+
     psi_est = np.arctan2(ys.slope, xs.slope)
 
     print("Started Optimisation")
@@ -277,9 +271,9 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
     m.dx = Var(m.N, m.P)  # velocity
     m.ddx = Var(m.N, m.P)  # acceleration
  
-    m.x_cam = Var(m.N, m.C, initialize=0.0, bounds=(-np.pi/2, np.pi/2)) #Cam position   
-    m.dx_cam = Var(m.N, m.C, initialize=0.0, bounds=(-0.5, 0.5)) #Cam velocity
-    m.ddx_cam = Var(m.N, m.C, initialize=0.0, bounds=(-0.5, 0.5)) #Cam acceleration
+    m.x_cam = Var(m.N, m.C, initialize=-0.01, bounds=(-np.pi/2, np.pi/2)) #Cam position   
+    m.dx_cam = Var(m.N, m.C, initialize=0.0)#, bounds=(-10, 10)) #Cam velocity
+    m.ddx_cam = Var(m.N, m.C, initialize=0.0)#, bounds=(-10, 10)) #Cam acceleration
 
     m.poses = Var(m.N, m.L, m.D3)
     m.slack_model = Var(m.N, m.P)
@@ -293,9 +287,6 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
     init_x[:, 0] = x_est  # x
     init_x[:, 1] = y_est  # y
     init_x[:, 2] = z_est  # z
-    print("x")
-    print(init_x.shape)
-    print(init_x)
     # init_x[:,(3+len(pos_funcs)*2)] = psi_est #yaw - psi
     init_dx = np.zeros((N, P))
     init_ddx = np.zeros((N, P))
@@ -316,11 +307,6 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
             print(pos)
             for d3 in range(1, D3 + 1):
                 m.poses[n, l, d3].value = pos[d3 - 1]
-
-    print("dx")
-    print(init_dx)
-    print("ddx")
-    print(init_ddx)
 
     #Init predicted encoder angles to 0
     for n in range(1, N + 1):
@@ -380,22 +366,22 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
             m.angs.add(expr=(abs(m.x[n, i]) <= np.pi / 2))
 
     #Constrain |encoder angles| to be less than 9o degrees
-    m.enc_angs = ConstraintList()
-    for n in range(1, N + 1):
-        for c in range(1, C + 1):
-            m.enc_angs.add(expr=(abs(m.x_cam[n, c]) <= np.pi / 2))
+    #m.enc_angs = ConstraintList()
+    #for n in range(1, N + 1):
+    #    for c in range(1, C + 1):
+    #        m.enc_angs.add(expr=(abs(m.x_cam[n, c]) <= np.pi / 2))
 
-    #Constrain |encoder velocities| to be less than 25 degrees/sec
-    m.enc_vels = ConstraintList()
-    for n in range(1, N + 1):
-        for c in range(1, C + 1):
-            m.enc_vels.add(expr=(abs(m.dx_cam[n, c]) <= 0.5))
+    #Constrain |encoder velocities| to be less than 10 rad/sec
+    #m.enc_vels = ConstraintList()
+    #for n in range(1, N + 1):
+    #    for c in range(1, C + 1):
+    #        m.enc_vels.add(expr=(abs(m.dx_cam[n, c]) <= 10))
 
-    #Constrain |encoder accs| to be less than 6 degrees/sec^2
-    m.enc_accs = ConstraintList()
-    for n in range(1, N + 1):
-        for c in range(1, C + 1):
-            m.enc_accs.add(expr=(abs(m.ddx_cam[n, c]) <= 0.2))
+    #Constrain |encoder accs| to be less than 10 rad/sec^2
+    #m.enc_accs = ConstraintList()
+    #for n in range(1, N + 1):
+    #    for c in range(1, C + 1):
+    #        m.enc_accs.add(expr=(abs(m.ddx_cam[n, c]) <= 10))
 
     # MODEL
     def constant_acc(m, n, p):
@@ -532,6 +518,8 @@ def convert_to_dict_rotating(m, poses) -> Dict:
     ddx_optimised = []
     x_model_slack_optimised = []
 
+    x_slack_meas_optimised = []
+
     x_cam_optimised = []
     dx_cam_optimised = []
     ddx_cam_optimised = []
@@ -543,6 +531,12 @@ def convert_to_dict_rotating(m, poses) -> Dict:
         ddx_optimised.append([value(m.ddx[n, p]) for p in m.P])
         x_model_slack_optimised.append([value(m.slack_model[n, p]) for p in m.P])
 
+        temp = []
+        for c in m.C:
+            for l in m.L:
+                temp.append([value(m.slack_meas[n, c, l, d]) for d in m.D2])
+        x_slack_meas_optimised.append(temp)
+
         x_cam_optimised.append([value(m.x_cam[n, c]) for c in m.C])
         dx_cam_optimised.append([value(m.dx_cam[n, c]) for c in m.C])
         ddx_cam_optimised.append([value(m.ddx_cam[n, c]) for c in m.C])
@@ -552,6 +546,8 @@ def convert_to_dict_rotating(m, poses) -> Dict:
     dx_optimised = np.array(dx_optimised)
     ddx_optimised = np.array(ddx_optimised)
     x_model_slack_optimised = np.array(x_model_slack_optimised)
+
+    x_slack_meas_optimised = np.array( x_slack_meas_optimised)
 
     x_cam_optimised = np.array(x_cam_optimised)
     dx_cam_optimised = np.array(dx_cam_optimised)
@@ -570,6 +566,7 @@ def convert_to_dict_rotating(m, poses) -> Dict:
         dx=dx_optimised,
         ddx=ddx_optimised,
         x_model_slack=x_model_slack_optimised,
+        slack_meas=x_slack_meas_optimised,
         x_cam=x_cam_optimised, 
         dx_cam=dx_cam_optimised, 
         ddx_cam=ddx_cam_optimised,
@@ -727,10 +724,11 @@ if __name__ == "__main__":
                         help='The likelihood of the dlc points below which will be excluded from the optimization')
     args = parser.parse_args()
 
-    #skeleton_path = os.path.join(args.top_dir, "skeletons", "new_human.pickle")
-    skeleton_path = os.path.join(args.top_dir, "skeletons", "human_no_chin.pickle")
+    #skeleton_path = os.path.join(args.top_dir, "skeletons", "human_no_chin.pickle")
+    skeleton_path = os.path.join(args.top_dir, "skeletons", "human_sep_2022.pickle")
     skelly = load_skeleton(skeleton_path)
     print(skelly)
+    #exit()
     data_path = os.path.join(args.top_dir, "data", args.project)
     model1, pose3d = build_model(skelly, args.top_dir)
     ipopt_path = "C:\\Users\\user-pc\\anaconda3\\pkgs\\Ipopt-3.14.1-win64-msvs2019-md\\bin\\ipopt.exe"

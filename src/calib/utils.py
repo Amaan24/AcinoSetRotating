@@ -128,12 +128,9 @@ def create_dlc_points_2d_file(dlc_df_fpaths):
 # for DLC labelled .h5 file
 def create_dlc_points_2d_file(dlc_df_fpaths):
     dfs = []
-    print(dlc_df_fpaths)
     for path in dlc_df_fpaths:
         dlc_df = pd.read_hdf(path)
-        print(dlc_df)
         dlc_df=dlc_df.droplevel([0], axis=1).swaplevel(0,1,axis=1).T.unstack().T.reset_index().rename({'level_0':'frame'}, axis=1)
-        print(dlc_df)
         dlc_df.columns.name = ''
         dfs.append(dlc_df)
 
