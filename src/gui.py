@@ -435,7 +435,7 @@ class PageTwo(tk.Frame):
                 point = [positions[frame][i][0], positions[frame][i][1], positions[frame][i][2]]
                 pose_dict[markers[i]] = point
                 a.scatter(point[0], point[1], point[2], color= "red")
-                a.text(point[0], point[1], point[2],  markers[i], size=8, zorder=1, color='k')
+                #a.text(point[0], point[1], point[2],  markers[i], size=8, zorder=1, color='k')
             #print(pose_dict)
             
             for link in links:
@@ -443,6 +443,10 @@ class PageTwo(tk.Frame):
                     a.plot3D([pose_dict[link[0]][0], pose_dict[link[1]][0]],
                      [pose_dict[link[0]][1], pose_dict[link[1]][1]],
                     [pose_dict[link[0]][2], pose_dict[link[1]][2]], color="black")
+
+            a.set_xlabel('x')
+            a.set_ylabel('y')
+            a.set_zlabel('z')
 
             update_canvas()
             plt.savefig(os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//data", "19Aug2022" ,"frames","img") + str(self.current_frame)+".jpg", dpi=100)

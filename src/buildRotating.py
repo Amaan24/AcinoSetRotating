@@ -42,8 +42,8 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
     print(dofs)
     markers = skel_dict["markers"]
 
-    #for joint in markers:
-    #    dofs[joint] = [1, 1, 1]
+    for joint in markers:
+        dofs[joint] = [1, 1, 1]
 
     rot_dict = {}
     pose_dict = {}
@@ -127,12 +127,11 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
 
     encoder_arr = np.hstack((enc1, enc2))
 
-    #encoder_arr = np.ones((10001, 2)) #Encoder Count (102000 CPT)\
-    #encoder_arr = np.zeros((10001, 2))
+    #encoder_arr = np.ones((100, 2)) #Encoder Count (102000 CPT)\
     #for i in range(0, len(encoder_arr)):
-    #    encoder_arr[i, 0] = 102000 #i*0.001
-    #    encoder_arr[i, 1] = 52000 #i*0.001
-    #encoder_arr = np.zeros((5001, 2))    
+        #encoder_arr[i, 0] = -1100
+        #encoder_arr[i, 1] = -1367
+        #encoder_arr = np.zeros((5001, 2))    
 
     K_arr, D_arr, R_arr, t_arr, _ = utils.load_scene(scene_path)
     D_arr = D_arr.reshape((-1, 4))
