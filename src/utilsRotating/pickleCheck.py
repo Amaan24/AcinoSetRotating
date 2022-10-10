@@ -4,7 +4,7 @@ from typing import Dict
 import os
 
 # cwd = 'C:\\Users\\user-pc\\Desktop\\19Aug2022'
-file = "C:\\Users\\user-pc\\Desktop\\22Sep2022\\synced_data.pkl"
+file = "C:\\Users\\user-pc\\Desktop\\22Sep2022\\synced_data_trimmed.pkl"
 
 
 # file = "C:\\Users\\user-pc\\Desktop\\AcinoSet\\skeletons\\new_human.pickle"
@@ -25,11 +25,11 @@ contents = load_pickle(file)
 
 #contents = np.array(contents)
 
-for i in range(0, len(contents['enc1tick'])):
-    print(i, contents['enc1tick'][i], contents['enc2tick'][i])
+#for i in range(0, len(contents['enc1tick'])):
+#    print(i, contents['enc1tick'][i], contents['enc2tick'][i])
 
-print(contents['enc1tick'][10071])
-print(contents['enc2tick'][10071])
+print(contents['enc1tick'][2150])
+print(contents['enc2tick'][2150])
 
 # print(max(contents['enc1tick']))
 # print(min(contents['enc1tick']))

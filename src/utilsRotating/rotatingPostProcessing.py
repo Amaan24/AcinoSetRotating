@@ -66,7 +66,7 @@ except OSError:
 cam1 = cv2.VideoCapture(vid1)
 
 count = 0
-'''
+
 with open(timestamp1) as f:
     while True:
         line = f.readline().replace('\n', '').split(',')
@@ -93,7 +93,7 @@ with open(timestamp1) as f:
                 break
 print(count)
 cam1.release()
-'''
+
 # Read the second video from specified path and create images from stream
 cam2 = cv2.VideoCapture(vid2)
 

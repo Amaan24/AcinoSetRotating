@@ -181,12 +181,9 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
 
     R = 3  # measurement standard deviation
 
-    ## TODO: Update estimation of initial points to include rotation!!
     triangulate_func = calib.triangulate_points_fisheye_rotating
-    #triangulate_func = calib.triangulate_points_fisheye
     points_2d_filtered_df = points_2d_df[points_2d_df['likelihood'] > 0.2]
     print(points_2d_filtered_df)
-    #points_3d_df = calib.get_pairwise_3d_points_from_df(points_2d_filtered_df, K_arr, D_arr, R_arr, t_arr,
     points_3d_df = calib.get_pairwise_3d_points_from_df_rotating(points_2d_filtered_df, K_arr, D_arr, R_arr, t_arr, encoder_arr,
                                                         triangulate_func)
     print("3d points")
@@ -399,6 +396,7 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
 
     m.enc_constant_acc = Constraint(m.N, m.C, rule=enc_constant_acc)
 
+    #TODO FIX THIS!!!
     # MEASUREMENT
     def measurement_constraints(m, n, c, l, d2):
         # project

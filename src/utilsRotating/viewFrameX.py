@@ -4,16 +4,16 @@ import os
 
 cwd = 'C:\\Users\\user-pc\\Desktop\\22Sep2022'
 
-vid_path1 = os.path.join(cwd, "1.avi")
-vid_path2 = os.path.join(cwd, "2.avi")
+#vid_path1 = os.path.join(cwd, "1.avi")
+#vid_path2 = os.path.join(cwd, "2.avi")
 
-#vid_path1 = os.path.join(cwd, "1_trimmed.avi")
-#vid_path2 = os.path.join(cwd, "2_trimmed.avi")
+vid_path1 = os.path.join(cwd, "1_trimmed.avi")
+vid_path2 = os.path.join(cwd, "2_trimmed.avi")
 
 #vid_path1 = os.path.join(cwd, "DLC", "1DLC_resnet101_human_pretrainedFeb18shuffle1_103000_labeled.mp4")
 #vid_path2 = os.path.join(cwd, "DLC", "2DLC_resnet101_human_pretrainedFeb18shuffle1_103000_labeled.mp4")
 
-frame_num = 0
+frame_num = 2150
 step = 1
 show_corners = 0
 
