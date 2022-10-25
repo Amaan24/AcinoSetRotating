@@ -131,7 +131,7 @@ def triangulate_points_fisheye(img_pts_1, img_pts_2, k1, d1, r1, t1, k2, d2, r2,
     pts_3d = (pts_4d[:3] / pts_4d[3]).T
     return pts_3d
 
-def triangulate_points_fisheye_rotating(img_pts_1, img_pts_2, k1, d1, rs1, t1, k2, d2, rs2, t2, frame_nos):
+def triangulate_points_fisheye_rotating(img_pts_1, img_pts_2, k1, d1, rs1, ts1, k2, d2, rs2, ts2, frame_nos):
     pts_1 = img_pts_1.reshape((-1,1,2))
     pts_2 = img_pts_2.reshape((-1, 1, 2))
     pts_1 = cv2.fisheye.undistortPoints(pts_1, k1, d1)
@@ -140,8 +140,8 @@ def triangulate_points_fisheye_rotating(img_pts_1, img_pts_2, k1, d1, rs1, t1, k
     pts_3d = []
 
     for i,frame in enumerate(frame_nos):
-        p1 = np.hstack((rs1[int(frame)], t1))
-        p2 = np.hstack((rs2[int(frame)], t2))
+        p1 = np.hstack((rs1[int(frame)], ts1[int(frame)]))
+        p2 = np.hstack((rs2[int(frame)], ts2[int(frame)]))
 
         pt_1 = pts_1[i].reshape((2,1))
         pt_2 = pts_2[i].reshape((2,1))
@@ -472,21 +472,33 @@ def get_pairwise_3d_points_from_df_rotating(points_2d_df, k_arr, d_arr, r_arr, t
             cam_a_points = np.array(intersection_df[['x_a','y_a']], dtype=np.float).reshape((-1,1,2))
             cam_b_points = np.array(intersection_df[['x_b','y_b']], dtype=np.float).reshape((-1,1,2))
 
-            def np_rot_z(z):
-                c = np.cos(z)
-                s = np.sin(z)
+            def rot_y(y):
+                c = np.cos(y)
+                s = np.sin(y)
                 return np.array([
-                    [c, s, 0],
-                    [-s, c, 0],
-                    [0, 0, 1]
-                ])
+                    [c, 0, -s],
+                    [0, 1, 0],
+                    [s, 0, c]
+                    ])
 
             cam_a_r_arrs = []
             cam_b_r_arrs = []
 
+            cam_a_t_vecs = []
+            cam_b_t_vecs = []
+
             for i in range(0, len(enc_arr)):
-                cam_a_r_arrs.append(r_arr[cam_a] @ np_rot_z(-1*pc.count_to_rad(enc_arr[i, cam_a])))  
-                cam_b_r_arrs.append(r_arr[cam_b] @ np_rot_z(-1*pc.count_to_rad(enc_arr[i, cam_b])))
+                cam_a_r_arrs.append(r_arr[cam_a] @ rot_y(pc.count_to_rad(enc_arr[i, cam_a]).T))  
+                cam_b_r_arrs.append(r_arr[cam_b] @ rot_y(pc.count_to_rad(enc_arr[i, cam_b]).T))
+
+                cam_a_t_vecs.append(rot_y(pc.count_to_rad(enc_arr[i, cam_a])).T @ t_arr[cam_a])
+                cam_b_t_vecs.append(rot_y(pc.count_to_rad(enc_arr[i, cam_b])).T @ t_arr[cam_b])
+
+                cam_a_r_arrs.append(r_arr[cam_a] )  
+                cam_b_r_arrs.append(r_arr[cam_b] )
+
+                cam_a_t_vecs.append(t_arr[cam_a])
+                cam_b_t_vecs.append(t_arr[cam_b])
 
             frame_nos = np.array(intersection_df[['frame']], dtype=np.int16)
 
@@ -494,8 +506,8 @@ def get_pairwise_3d_points_from_df_rotating(points_2d_df, k_arr, d_arr, r_arr, t
             print(len(frame_nos))
 
             points_3d = triangulate_func(cam_a_points, cam_b_points,
-                                            k_arr[cam_a], d_arr[cam_a], cam_a_r_arrs, t_arr[cam_a], 
-                                            k_arr[cam_b], d_arr[cam_b], cam_b_r_arrs, t_arr[cam_b], frame_nos
+                                            k_arr[cam_a], d_arr[cam_a], cam_a_r_arrs, cam_a_t_vecs, 
+                                            k_arr[cam_b], d_arr[cam_b], cam_b_r_arrs, cam_b_t_vecs, frame_nos
                                         )
 
             print(points_3d[:, 0])

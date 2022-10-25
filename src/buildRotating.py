@@ -71,7 +71,7 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
             rot_dict[part] = rot_z(psi[i]) @ rot_dict[part] # Add z rotation if joint is free to rotate about z axis
 
         # All parts need to be rotated into Inertial frame (aligned with CamA @ t0)
-        rot_dict[part] = rot_z(alpha) @ rot_dict[part] # Rotation about Z axis by alpha (CamA rotation angle)
+        #rot_dict[part] = rot_z(alpha) @ rot_dict[part] # Rotation about Z axis by alpha (CamA rotation angle)
         #rot_dict[part] = rot_z(beta) @ rot_dict[part] # Rotation about Z axis by alpha (CamA rotation angle)
 
         rot_dict[part + "_i"] = rot_dict[part].T
@@ -108,7 +108,7 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
     t_poses_mat = sp.Matrix(t_poses)
 
     func_map = {"sin": sin, "cos": cos, "ImmutableDenseMatrix": np.array}
-    sym_list = [x, y, z, *phi, *theta, *psi, alpha]
+    sym_list = [x, y, z, *phi, *theta, *psi]#, alpha]
     pose_to_3d = sp.lambdify(sym_list, t_poses_mat, modules=[func_map])
     pos_funcs = []
 
@@ -123,15 +123,15 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
         synced_data = pickle.load(handle)
 
     enc1 = np.reshape(synced_data['enc1tick'], (-1, 1))
+    enc1 = np.reshape(synced_data['enc1tick'][:7357], (-1, 1))
     enc2 = np.reshape(synced_data['enc2tick'], (-1, 1))
 
     encoder_arr = np.hstack((enc1, enc2))
 
-    #encoder_arr = np.ones((100, 2)) #Encoder Count (102000 CPT)\
-    #for i in range(0, len(encoder_arr)):
-        #encoder_arr[i, 0] = -1100
-        #encoder_arr[i, 1] = -1367
-        #encoder_arr = np.zeros((5001, 2))    
+    #for i in range(1,500):
+    #    print(i, encoder_arr[i,0], encoder_arr[i,1])
+    
+    #encoder_arr = np.zeros((10000, 2)) 
 
     K_arr, D_arr, R_arr, t_arr, _ = utils.load_scene(scene_path)
     D_arr = D_arr.reshape((-1, 4))
@@ -171,7 +171,7 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
     h = 1 / 100  # timestep: 1/framerate
     start_frame = args.start_frame  # 50
     N = args.end_frame - args.start_frame
-    P = 3 + len(phi) + len(theta) + len(psi) + 1
+    P = 3 + len(phi) + len(theta) + len(psi)# + 1
     L = len(pos_funcs)
     C = len(K_arr)
     D2 = 2 #What is this number
@@ -189,21 +189,16 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
     print("3d points")
     print(points_3d_df)
 
-    # estimate initial points from linear regression of all forehead points??
-    # Sets the initial points cv                                                        
+    # Sets the initial points uding triangulation                                                        
     nose_pts = points_3d_df[points_3d_df["marker"] == "forehead"][["x", "y", "z", "frame" ]].values
     print(nose_pts.shape)
-
-    xs = stats.linregress(nose_pts[:, 3], nose_pts[:, 0])
-    ys = stats.linregress(nose_pts[:, 3], nose_pts[:, 1])
-    zs = stats.linregress(nose_pts[:, 3], nose_pts[:, 2])
+    print(nose_pts)
+ 
+    #TODO Add frame dependability
     frame_est = np.arange(N)
-
-    x_est = np.array([frame_est[i] * (xs.slope) + (xs.intercept) for i in range(len(frame_est))])
-    y_est = np.array([frame_est[i] * (ys.slope) + (ys.intercept) for i in range(len(frame_est))])
-    z_est = np.array([frame_est[i] * (zs.slope) + (zs.intercept) for i in range(len(frame_est))])
-
-    psi_est = np.arctan2(ys.slope, xs.slope)
+    x_est = np.array([nose_pts[i][0]  for i in range(len(frame_est))])
+    y_est = np.array([nose_pts[i][1]  for i in range(len(frame_est))])
+    z_est = np.array([nose_pts[i][2]  for i in range(len(frame_est))])
 
     print("Started Optimisation")
     m = ConcreteModel(name="Skeleton")
@@ -402,7 +397,8 @@ def build_model(skel_dict, project_dir) -> ConcreteModel:
         # project
         K, D, R, t = K_arr[c - 1], D_arr[c - 1], R_arr[c - 1], t_arr[c - 1]
 
-        R =  R @ np_rot_z(m.x_cam[n, c].value)
+        R =  np_rot_y(m.x_cam[n, c].value).T @ R
+        t =  np_rot_y(m.x_cam[n, c].value).T @ t
 
         x, y, z = m.poses[n, l, 1], m.poses[n, l, 2], m.poses[n, l, 3]
         if (markers[l - 1] == "neck"):
@@ -723,6 +719,8 @@ if __name__ == "__main__":
 
     #skeleton_path = os.path.join(args.top_dir, "skeletons", "human_no_chin.pickle")
     skeleton_path = os.path.join(args.top_dir, "skeletons", "human_sep_2022.pickle")
+    skeleton_path = os.path.join(args.top_dir, "skeletons", "human25102022.pickle")
+    
     skelly = load_skeleton(skeleton_path)
     print(skelly)
     #exit()

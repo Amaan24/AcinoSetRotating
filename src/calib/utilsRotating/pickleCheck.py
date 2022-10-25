@@ -4,7 +4,7 @@ from typing import Dict
 import os
 
 # cwd = 'C:\\Users\\user-pc\\Desktop\\19Aug2022'
-file = "C:\\Users\\user-pc\\Desktop\\22Sep2022\\synced_data_trimmed.pkl"
+file = "C:\\Users\\user-pc\\Desktop\\11Oct2022S\\synced_data_trimmed.pkl"
 
 
 # file = "C:\\Users\\user-pc\\Desktop\\AcinoSet\\skeletons\\new_human.pickle"
@@ -25,11 +25,12 @@ contents = load_pickle(file)
 
 #contents = np.array(contents)
 
+print(len(contents['enc1tick']))
+#print(contents['enc2tick'])
 #for i in range(0, len(contents['enc1tick'])):
-#    print(i, contents['enc1tick'][i], contents['enc2tick'][i])
+for i in range(0, 500):
+    print(i, contents['enc1tick'][i], contents['enc2tick'][i])
 
-print(contents['enc1tick'][2150])
-print(contents['enc2tick'][2150])
 
 # print(max(contents['enc1tick']))
 # print(min(contents['enc1tick']))
@@ -37,15 +38,15 @@ print(contents['enc2tick'][2150])
 # print(min(contents['enc2tick']))
 
 '''
-c1ts = contents['c1ts'][10000:]
-c2ts = contents['c2ts'][10000:]
-c1c2offset = contents['c1c2offset'][10000:]
-encts = contents['encts'][10000:]
-enc1tick = contents['enc1tick'][10000:]
-c1enc1offset = contents['c1enc1offset'][10000:]
-enc2ts = contents['enc2ts'][10000:]
-enc2tick = contents['enc2tick'][10000:]
-c1enc2offset = contents['c1enc2offset'][10000:]
+c1ts = contents['c1ts'][9000:]
+c2ts = contents['c2ts'][9000:]
+c1c2offset = contents['c1c2offset'][9000:]
+encts = contents['encts'][9000:]
+enc1tick = contents['enc1tick'][9000:]
+c1enc1offset = contents['c1enc1offset'][9000:]
+enc2ts = contents['enc2ts'][9000:]
+enc2tick = contents['enc2tick'][9000:]
+c1enc2offset = contents['c1enc2offset'][9000:]
 
 
 synced_dict = {'c1ts': c1ts,
@@ -59,6 +60,6 @@ synced_dict = {'c1ts': c1ts,
                'c1enc2offset': c1enc2offset
                }
 
-with open('C:\\Users\\user-pc\\Desktop\\22Sep2022\\synced_data_trimmed.pkl', 'wb') as f:
+with open('C:\\Users\\user-pc\\Desktop\\11Oct2022S\\synced_data_trimmed.pkl', 'wb') as f:
     pickle.dump(synced_dict, f)
 '''

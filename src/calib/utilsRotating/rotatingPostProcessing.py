@@ -1,6 +1,7 @@
 # Importing all necessary libraries
 import os
 import csv
+from tempfile import template
 import cv2
 import re
 import pickle
@@ -8,14 +9,14 @@ import pickle
 # Specify working directory and relevant file names
 import numpy as np
 
-cwd = 'C:\\Users\\user-pc\\Desktop\\22Sep2022'
-date = '2022_09_22_05_46'
+cwd = 'C:\\Users\\user-pc\\Desktop\\11Oct2022R'
+date = '2022_10_11_05_48'
 
 vid1 = os.path.join(cwd, ('1_video-' + date + '.mp4'))
 vid2 = os.path.join(cwd, ('2_video-' + date + '.mp4'))
 
-timestamp1 = os.path.join(cwd, ('1_timestamps_filtered-' + date + '.txt'))
-timestamp2 = os.path.join(cwd, ('2_timestamps_filtered-' + date + '.txt'))
+timestamp1 = os.path.join(cwd, ('1_timestamps-' + date + '.txt'))
+timestamp2 = os.path.join(cwd, ('2_timestamps-' + date + '.txt'))
 
 logFile1 = os.path.join(cwd, ('1_terminal_logs-' + date + '.txt'))
 logFile2 = os.path.join(cwd, ('2_terminal_logs-' + date + '.txt'))
@@ -72,13 +73,25 @@ with open(timestamp1) as f:
         line = f.readline().replace('\n', '').split(',')
         if not line:
             break
+        if len(line) < 2:
+            break
         count += 1
-        if line[0] not in skipped1:
+
+        frame = line[0]
+        timestamp = line[1].replace('.', '')
+
+        if len(timestamp) < 19:
+            temp1 = timestamp[:10]
+            temp2 = timestamp[10:]
+            zeroes = '0'*(19-len(timestamp))
+            timestamp = temp1 + zeroes + temp2
+
+        if frame not in skipped1:
             ret, frame = cam1.read()
             if ret:
                 # print(str(count) + ": " + str(row))
-                frameName = line[1][:13] + '.jpg'
-                print(frameName)
+                frameName = timestamp[:13] + '.jpg'
+                #print(frameName)
                 framePath = os.path.join(dir1, frameName)
                 # print(framePath)
                 if not os.path.exists(framePath):
@@ -100,15 +113,28 @@ cam2 = cv2.VideoCapture(vid2)
 count = 0
 with open(timestamp2) as f:
     while True:
-        line = f.readline().replace('\n', '').split(',')
+        line = f.readline().replace('\n', '').split('-')
         if not line:
             break
+        if len(line) < 2:
+            break
         count += 1
-        if line[0] not in skipped2:
+
+        frame = line[0]
+        timestamp = line[1].replace('.', '')
+
+        if len(timestamp) < 19:
+            temp1 = timestamp[:10]
+            temp2 = timestamp[10:]
+            zeroes = '0'*(19-len(timestamp))
+            timestamp = temp1 + zeroes + temp2
+
+        if frame not in skipped2:
             ret, frame = cam2.read()
             if ret:
                 # print(str(count) + ": " + str(row))
-                frameName = line[1][:13] + '.jpg'
+                frameName = timestamp[:13] + '.jpg'
+                print(frameName)
                 framePath = os.path.join(dir2, frameName)
                 # print(framePath)
                 if not os.path.exists(framePath):
@@ -151,9 +177,9 @@ tsF.close()
 encVals1, encTS1 = [], []
 for item in content_list:
     if len(item) > 2:
-        val = re.split('\t', item)
+        val = re.split(',', item)
         encVals1.append(int(val[0]))
-        encTS1.append(int(val[1]))
+        encTS1.append(int(val[1].replace('.', '').replace(' ', '')[:13]))
 
 with open(encFile2) as tsF:
     file_content = tsF.read()
@@ -163,9 +189,9 @@ tsF.close()
 encVals2, encTS2 = [], []
 for item in content_list:
     if len(item) > 2:
-        val = re.split('\t', item)
+        val = re.split(',', item)
         encVals2.append(int(val[0]))
-        encTS2.append(int(val[1]))
+        encTS2.append(int(val[1].replace('.', '').replace(' ', '')[:13]))
 
 corr_timestamps1 = list(map(lambda y: min(encTS1, key=lambda x: abs(x - y)), f1))
 corr_timestamps2 = list(map(lambda y: min(encTS2, key=lambda x: abs(x - y)), f1))

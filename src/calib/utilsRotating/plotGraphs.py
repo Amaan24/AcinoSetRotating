@@ -3,7 +3,7 @@ from typing import Dict
 import matplotlib.pyplot as plt
 import numpy as np
 
-file = "C:\\Users\\user-pc\\Desktop\\AcinoSetRotating\\data\\22Sep2022\\results\\traj_results.pickle"
+file = "C:\\Users\\user-pc\\Desktop\\AcinoSetRotating\\data\\11Oct2022S\\results\\traj_results.pickle"
 
 def load_pickle(pickle_file) -> Dict:
     """

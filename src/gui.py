@@ -404,14 +404,14 @@ class PageTwo(tk.Frame):
             currdir = os.getcwd()
             skel_name = (field_name1.get())
 
-            #skelly_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//skeletons", ("new_human.pickle"))
+            skelly_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//skeletons", ("new_human.pickle"))
             #results_dir = os.path.join("C://Users//user-pc//Documents//Scripts//amaan", "data", "results", "cheetah_final", ("fte.pickle"))
-
-            #skelly_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//skeletons", ("human_no_chin.pickle"))
-            #results_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//data", "22Sep2022", "results", ("traj_results.pickle"))
 
             skelly_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//skeletons", ("human_sep_2022.pickle"))
             results_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//data", "22Sep2022", "results", ("traj_results.pickle"))
+
+            #skelly_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//skeletons", ("human25102022.pickle"))
+            results_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//data", "11Oct2022S", "results", ("traj_results.pickle"))
 
             skel_dict = bd.load_skeleton(skelly_dir)
             results = an.load_pickle(results_dir)
@@ -430,6 +430,7 @@ class PageTwo(tk.Frame):
                 "ankle1": skel_dict["positions"]["ankle1"], "ankle2": skel_dict["positions"]["ankle2"]}
 
             positions = results["positions"]
+            print(positions)
 
             for i in range(len(markers)):
                 point = [positions[frame][i][0], positions[frame][i][1], positions[frame][i][2]]
