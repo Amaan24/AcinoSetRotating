@@ -23,7 +23,7 @@ def plot_results() -> None:
 
     pose_dict = {}
 
-    skelly_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//skeletons", ("human_no_chin.pickle"))
+    skelly_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//skeletons", ("human25102022.pickle"))
 
     skel_dict = load_skeleton(skelly_dir)
     print(skel_dict)
@@ -35,7 +35,7 @@ def plot_results() -> None:
     links = skel_dict["links"]
     markers = skel_dict["markers"]
 
-    positions = {"chin": skel_dict["positions"]["chin"], "forehead": skel_dict["positions"]["forehead"],
+    positions = {"chin": skel_dict["positions"]["chin"], "forehead": skel_dict["positions"]["forehead"], "neck": skel_dict["positions"]["neck"],
                  "shoulder1": skel_dict["positions"]["shoulder1"], "shoulder2": skel_dict["positions"]["shoulder2"],
                  "elbow1": skel_dict["positions"]["elbow1"], "elbow2": skel_dict["positions"]["elbow2"],
                  "hip1": skel_dict["positions"]["hip1"], "hip2": skel_dict["positions"]["hip2"],

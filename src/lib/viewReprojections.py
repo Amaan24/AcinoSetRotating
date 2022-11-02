@@ -34,6 +34,15 @@ def pt3d_to_2d(x, y, z, K, D, R, t):
     v = K[1, 1] * y_P + K[1, 2]
     return u, v
 
+def np_rot_x(x):
+    c = np.cos(x)
+    s = np.sin(x)
+    return np.array([
+        [1, 0, 0],
+        [0, c, s],
+        [0, -s, c]
+    ])
+
 def np_rot_y(y):
     c = np.cos(y)
     s = np.sin(y)
@@ -42,6 +51,22 @@ def np_rot_y(y):
         [0, 1, 0],
         [s, 0, c]
     ])
+
+def np_rot_z(z):
+    c = np.cos(z)
+    s = np.sin(z)
+    return np.array([
+        [c, s, 0],
+        [-s, c, 0],
+        [0, 0, 1]
+    ])
+
+def count_to_rad(enc_count):
+    """
+    Returns the given encoder count as its equivalent angle in radians
+    """
+    ang = enc_count * 2 * np.pi / 102000
+    return ang
 
 cwd = "C:\\Users\\user-pc\\Desktop\\AcinoSetRotating\\data\\11Oct2022S\\"
 vid_dir = "C:\\Users\\user-pc\\Desktop\\11Oct2022S"
@@ -53,8 +78,9 @@ encoder_path = os.path.join(cwd, "synced_data.pkl")
 
 #Load 3D Points from trajectory optimization
 opt_results = load_pickle(results)
+print(opt_results.keys)
 
-positions =  np.array([[
+position =  np.array([[
     [0.365857,  6.890354, -0.822666],
     [0.062193,  6.857276, -0.792951],
     [0.263661,  6.627421,  0.654366],
@@ -71,9 +97,10 @@ positions =  np.array([[
     [0.472888,  6.699009,  0.12238],
     [0.001705,  6.733185,  0.149866]
 ]])
+positions = np.full((7000,15,3), position)
 positions = opt_results['positions']
-
 print(positions.shape)
+print(positions)
 
 #Open encoder files for R and t changes
 with open(encoder_path, 'rb') as handle:
@@ -84,15 +111,19 @@ enc1 = np.reshape(synced_data['enc1tick'][:7357], (-1, 1))
 enc2 = np.reshape(synced_data['enc2tick'], (-1, 1))
 encoder_arr = np.hstack((enc1, enc2))
 
+#estEnc = np.reshape(opt_results['x_cam'], (-1,2))
+#print(estEnc)
+
 #Load Camera intrinsics and initial extrinsics
 K_arr, D_arr, R_arr, t_arr, _ = load_scene(scene_path)
 D_arr = D_arr.reshape((-1, 4))
 
 #
-frame_num = 0
+start_frame = 600
+frame_num = start_frame
 cap1 = cv2.VideoCapture(vid_path1)
 cap2 = cv2.VideoCapture(vid_path2)
-for i,frame in enumerate(positions):
+for frame in positions:
     cap1.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
     res, frame1 = cap1.read()
 
@@ -100,12 +131,17 @@ for i,frame in enumerate(positions):
     res, frame2 = cap2.read()
 
     K1, D1, R1, t1 = K_arr[0], D_arr[0], R_arr[0], t_arr[0]
-    R1 =  np_rot_y(encoder_arr[i, 0]).T @ R1
-    t1 =  np_rot_y(encoder_arr[i, 0]).T @ t1
+    R1 =  np_rot_y(count_to_rad(encoder_arr[frame_num, 0])).T @ R1
+    t1 =  np_rot_y(count_to_rad(encoder_arr[frame_num, 0])).T @ t1
+    print('Alpha:' + str(count_to_rad(encoder_arr[frame_num, 0])))
+    #print('Estimated Alpha: ' + str(estEnc[frame_num-start_frame,0]))
 
     K2, D2, R2, t2 = K_arr[1], D_arr[1], R_arr[1], t_arr[1]
-    R2 =  np_rot_y(encoder_arr[i, 1]).T @ R2
-    t2 =  np_rot_y(encoder_arr[i, 1]).T @ t2
+    R2 =  np_rot_y(count_to_rad(encoder_arr[frame_num, 1])).T @ R2
+    #R2 =  np_rot_y(0.3).T @ R2
+    t2 =  np_rot_y(count_to_rad(encoder_arr[frame_num, 1])).T @ t2
+    print('Beta:' + str(count_to_rad(encoder_arr[frame_num, 1])))
+    #print('Estimated Beta: ' + str(estEnc[frame_num-start_frame,1]))
 
     for point in frame:
         u1, v1 = pt3d_to_2d(point[0], point[1], point[2], K1, D1, R1, t1)
@@ -121,6 +157,8 @@ for i,frame in enumerate(positions):
     if key == ord('q'):
         break
 
-    print(i)
+    frame_num += 1
+
+    print(frame_num)
 
 

@@ -15,18 +15,12 @@ def load_pickle(pickle_file) -> Dict:
 
 
 opt_results = load_pickle(file)
-print(opt_results.keys())
 
+x = opt_results['x']
+dx = opt_results['dx']
+ddx = opt_results['ddx']
 model_slack = opt_results['x_model_slack']
-x_cam = opt_results['x_cam']
-dx_cam = opt_results['dx_cam']
-ddx_cam = opt_results['ddx_cam']
-enc_slack = opt_results['x_cam_model_slack']
-
 slack_meas = opt_results['slack_meas']
-#slack_meas.reshape(20, 28, 2)
-
-print(slack_meas.shape)
 
 meas_slack = []
 for frame in range (0, len(slack_meas)):
@@ -38,6 +32,7 @@ for frame in range (0, len(slack_meas)):
 
 model_slack_m = []
 model_slack_rad = []
+
 for frame in range(0, len(model_slack)):
     m_sum = 0
     rad_sum = 0
@@ -48,20 +43,19 @@ for frame in range(0, len(model_slack)):
     model_slack_m.append(m_sum)
     model_slack_rad.append(rad_sum)
 
-frames = np.arange(0, len(x_cam))
-
+frames = np.arange(0, len(x))
 fig, axs = plt.subplots(2, 3)
-axs[0, 0].plot(frames, x_cam[:, 0], "C0", label='Alpha')
-axs[0, 0].plot(frames, dx_cam[:, 0], "C1", label='dAlpha')
-axs[0, 0].plot(frames, ddx_cam[:, 0], "C2", label='ddAlpha')
+axs[0, 0].plot(frames, x[:, 45], "C0", label='Alpha')
+axs[0, 0].plot(frames, dx[:, 45], "C1", label='dAlpha')
+axs[0, 0].plot(frames, ddx[:, 45], "C2", label='ddAlpha')
 axs[0, 0].set_title("Alpha, dAlpha, ddAlpha")
 axs[0, 0].set_xlabel('Frame (N)')
 axs[0, 0].set_ylabel('Angle rad rad/s rad/s^2')
 axs[0, 0].legend()
 
-axs[1, 0].plot(frames, x_cam[:, 1], "C1", label='Beta')
-axs[1, 0].plot(frames, dx_cam[:, 1], "C2", label='dBeta')
-axs[1, 0].plot(frames, ddx_cam[:, 1], "C3", label='ddBeta')
+axs[1, 0].plot(frames, x[:, 46], "C1", label='Beta')
+axs[1, 0].plot(frames, dx[:, 46], "C2", label='dBeta')
+axs[1, 0].plot(frames, ddx[:, 46], "C3", label='ddBeta')
 axs[1, 0].set_title("Beta, dBeta, ddBeta")
 axs[1, 0].set_xlabel('frame (N)')
 axs[1, 0].set_ylabel('Angle rad rad/s rad/s^2')
@@ -73,13 +67,6 @@ axs[0, 1].plot(frames, model_slack_rad, "C1", label='Slack rad')
 axs[0, 1].set_xlabel('frame (N)')
 axs[0, 1].set_ylabel('Total Slack m/s^2 rad/s^2')
 axs[0, 1].legend()
-
-axs[1, 1].set_title("Encoder Slack")
-axs[1, 1].plot(frames, enc_slack[:, 0], "C1", label='Enc1')
-axs[1, 1].plot(frames, enc_slack[:, 1], "C2", label='Enc2')
-axs[1, 1].set_xlabel('frame (N)')
-axs[1, 1].set_ylabel('Slack (rad/s^2)')
-axs[1, 1].legend()
 
 axs[0, 2].set_title("Meas Slack Per Frame")
 axs[0, 2].plot(frames, meas_slack, "C0", label='Meas Slack')

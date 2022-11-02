@@ -7,7 +7,7 @@ from tkinter import filedialog, ttk
 import os
 import time
 from pyomo.core.expr import current
-from calib import calib, app, extract, utils, plotting
+from lib import calib, app, extract, utils, plotting
 import get_points as pt
 import numpy as np
 import matplotlib
@@ -404,21 +404,22 @@ class PageTwo(tk.Frame):
             currdir = os.getcwd()
             skel_name = (field_name1.get())
 
-            skelly_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//skeletons", ("new_human.pickle"))
+            #skelly_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//skeletons", ("new_human.pickle"))
             #results_dir = os.path.join("C://Users//user-pc//Documents//Scripts//amaan", "data", "results", "cheetah_final", ("fte.pickle"))
 
-            skelly_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//skeletons", ("human_sep_2022.pickle"))
-            results_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//data", "22Sep2022", "results", ("traj_results.pickle"))
+            #skelly_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//skeletons", ("human_sep_2022.pickle"))
+            #results_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//data", "22Sep2022", "results", ("traj_results.pickle"))
 
-            #skelly_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//skeletons", ("human25102022.pickle"))
+            skelly_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//skeletons", ("human25102022.pickle"))
             results_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//data", "11Oct2022S", "results", ("traj_results.pickle"))
 
             skel_dict = bd.load_skeleton(skelly_dir)
             results = an.load_pickle(results_dir)
             links = skel_dict["links"]
-            markers = skel_dict["markers"]
             print(links)
-            print(markers)
+            #markers = skel_dict["markers"]
+            markers = ["forehead", "chin", "neck", "shoulder1", "shoulder2", "elbow1", "elbow2",
+                "wrist1", "wrist2", "pelvis", "hip1", "hip2", "knee1", "knee2", "ankle1", "ankle2"]
 
             positions = {"chin": skel_dict["positions"]["chin"], "forehead": skel_dict["positions"]["forehead"], 
                 "neck": skel_dict["positions"]["neck"],
@@ -436,7 +437,7 @@ class PageTwo(tk.Frame):
                 point = [positions[frame][i][0], positions[frame][i][1], positions[frame][i][2]]
                 pose_dict[markers[i]] = point
                 a.scatter(point[0], point[1], point[2], color= "red")
-                #a.text(point[0], point[1], point[2],  markers[i], size=8, zorder=1, color='k')
+                a.text(point[0], point[1], point[2],  markers[i], size=8, zorder=1, color='k')
             #print(pose_dict)
             
             for link in links:

@@ -488,17 +488,17 @@ def get_pairwise_3d_points_from_df_rotating(points_2d_df, k_arr, d_arr, r_arr, t
             cam_b_t_vecs = []
 
             for i in range(0, len(enc_arr)):
-                cam_a_r_arrs.append(r_arr[cam_a] @ rot_y(pc.count_to_rad(enc_arr[i, cam_a]).T))  
-                cam_b_r_arrs.append(r_arr[cam_b] @ rot_y(pc.count_to_rad(enc_arr[i, cam_b]).T))
+                cam_a_r_arrs.append(rot_y(pc.count_to_rad(enc_arr[i, cam_a]).T) @ r_arr[cam_a])  
+                cam_b_r_arrs.append(rot_y(pc.count_to_rad(enc_arr[i, cam_b]).T) @ r_arr[cam_b])
 
                 cam_a_t_vecs.append(rot_y(pc.count_to_rad(enc_arr[i, cam_a])).T @ t_arr[cam_a])
                 cam_b_t_vecs.append(rot_y(pc.count_to_rad(enc_arr[i, cam_b])).T @ t_arr[cam_b])
 
-                cam_a_r_arrs.append(r_arr[cam_a] )  
-                cam_b_r_arrs.append(r_arr[cam_b] )
+                #cam_a_r_arrs.append(r_arr[cam_a])  
+                #cam_b_r_arrs.append(r_arr[cam_b] )
 
-                cam_a_t_vecs.append(t_arr[cam_a])
-                cam_b_t_vecs.append(t_arr[cam_b])
+                #cam_a_t_vecs.append(t_arr[cam_a])
+                #cam_b_t_vecs.append(t_arr[cam_b])
 
             frame_nos = np.array(intersection_df[['frame']], dtype=np.int16)
 
