@@ -195,7 +195,7 @@ def calibrate_pairwise_extrinsics_manual(calib_func, img_pts_arr, k_arr, d_arr, 
 
 def plot_scene(scene_fpath):
     _, _, r_arr, t_arr, _ = load_scene(scene_fpath)
-    scene = Scene()
+    scene = Scene(scene_fpath)
     for r, t in zip(r_arr, t_arr):
         scene.plot_camera(r, t)
     scene.show()

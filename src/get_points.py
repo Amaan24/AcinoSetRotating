@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 import os
-from calib import calib, app, extract, utils, plotting
+from lib import calib, app, extract, utils, plotting
 import glob
 import numpy as np
 from scipy import stats

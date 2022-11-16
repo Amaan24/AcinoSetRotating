@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import pickle
 import analyse as an
-import buildRotating as bd
+import build as bd
 from matplotlib.animation import FuncAnimation, PillowWriter, Animation
 
 class Application(tk.Tk):
@@ -376,19 +376,17 @@ class PageTwo(tk.Frame):
             #a.set_xticks([])
             #a.set_yticks([])
             #a.set_zticks([])
-            a.set_xlim3d(4, 8)
-            a.set_ylim3d(0, 4)
 
             a.set_xlim3d(-2, 2)
             a.set_ylim3d(5, 9)
+            a.set_zlim3d(-1.5,1.5)
 
-            a.set_zlim3d(-2,2)
             canvas = FigureCanvasTkAgg(f, self)
             canvas.get_tk_widget().pack(side=tk.BOTTOM, fill=tk.BOTH, expand=True)
             canvas._tkcanvas.place(relx=0.5, rely=0.45, anchor="center")
 
         def init():
-            a.set_xlim3d(-1, 8)
+            a.set_xlim3d(-1, 1)
             a.set_ylim3d(26, 28)
             a.set_zlim3d(0,1)
             a.view_init(elev=20., azim=30)
@@ -401,45 +399,32 @@ class PageTwo(tk.Frame):
             Plots results for the given skeleton (frame 0)
             """
             pose_dict = {}
-            currdir = os.getcwd()
-            skel_name = (field_name1.get())
 
-            #skelly_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//skeletons", ("new_human.pickle"))
-            #results_dir = os.path.join("C://Users//user-pc//Documents//Scripts//amaan", "data", "results", "cheetah_final", ("fte.pickle"))
+            project = "09Nov2022"
+            results_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//data", project, "results")
+            results_file = os.path.join(results_dir, ("traj_results.pickle")) 
+            frames_dir =  os.path.join(results_dir, "frames")
 
-            #skelly_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//skeletons", ("human_sep_2022.pickle"))
-            #results_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//data", "22Sep2022", "results", ("traj_results.pickle"))
+            if not os.path.exists(frames_dir):
+                os.makedirs(frames_dir)
 
-            skelly_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//skeletons", ("human25102022.pickle"))
-            results_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//data", "11Oct2022S", "results", ("traj_results.pickle"))
-
-            skel_dict = bd.load_skeleton(skelly_dir)
-            results = an.load_pickle(results_dir)
-            links = skel_dict["links"]
-            print(links)
-            #markers = skel_dict["markers"]
-            markers = ["forehead", "chin", "neck", "shoulder1", "shoulder2", "elbow1", "elbow2",
-                "wrist1", "wrist2", "pelvis", "hip1", "hip2", "knee1", "knee2", "ankle1", "ankle2"]
-
-            positions = {"chin": skel_dict["positions"]["chin"], "forehead": skel_dict["positions"]["forehead"], 
-                "neck": skel_dict["positions"]["neck"],
-                "shoulder1": skel_dict["positions"]["shoulder1"], "shoulder2": skel_dict["positions"]["shoulder2"],
-                "elbow1": skel_dict["positions"]["elbow1"], "elbow2": skel_dict["positions"]["elbow2"],
-                "hip1": skel_dict["positions"]["hip1"], "hip2": skel_dict["positions"]["hip2"],
-                "wrist1": skel_dict["positions"]["wrist1"], "wrist2": skel_dict["positions"]["wrist2"],
-                "knee1": skel_dict["positions"]["knee1"], "knee2": skel_dict["positions"]["knee2"],
-                "ankle1": skel_dict["positions"]["ankle1"], "ankle2": skel_dict["positions"]["ankle2"]}
+            results = an.load_pickle(results_file)
 
             positions = results["positions"]
-            print(positions)
+            
+            links = [['forehead', 'chin'], ['forehead', 'neck'], ['neck', 'pelvis'], ['neck', 'shoulder1'], ['neck', 'shoulder2'], ['pelvis', 'hip1'], ['pelvis', 'hip2'], 
+                        ['shoulder1', 'elbow1'], ['shoulder2', 'elbow2'], ['elbow1', 'wrist1'], ['elbow2', 'wrist2'], ['hip1', 'hip2'], ['hip1', 'knee1'], ['hip2', 'knee2'],
+                        ['knee1', 'ankle1'], ['knee2', 'ankle2']]
+            
+            markers = ["forehead", "chin", "neck", "shoulder1", "shoulder2", "elbow1", "elbow2",
+                "wrist1", "wrist2", "pelvis", "hip1", "hip2", "knee1", "knee2", "ankle1", "ankle2"]
 
             for i in range(len(markers)):
                 point = [positions[frame][i][0], positions[frame][i][1], positions[frame][i][2]]
                 pose_dict[markers[i]] = point
                 a.scatter(point[0], point[1], point[2], color= "red")
-                a.text(point[0], point[1], point[2],  markers[i], size=8, zorder=1, color='k')
-            #print(pose_dict)
-            
+                #a.text(point[0], point[1], point[2],  markers[i], size=8, zorder=1, color='k')
+             
             for link in links:
                 if len(link)>1:
                     a.plot3D([pose_dict[link[0]][0], pose_dict[link[1]][0]],
@@ -451,7 +436,7 @@ class PageTwo(tk.Frame):
             a.set_zlabel('z')
 
             update_canvas()
-            plt.savefig(os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//data", "19Aug2022" ,"frames","img") + str(self.current_frame)+".jpg", dpi=100)
+            plt.savefig(os.path.join(frames_dir, "img") + str(self.current_frame)+".jpg", dpi=100)
         
         def next_frame() -> None:
             """

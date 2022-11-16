@@ -1,8 +1,8 @@
 import numpy as np
 import json
-import calib.plotting as plotting
-import calib.app as app
-import calib.utils as utils
+import lib.plotting as plotting
+import lib.app as app
+import lib.utils as utils
 
 scene_path = 'C:\\Users\\user-pc\\Desktop\\AcinoSetRotating\\data\\11Oct2022S\\extrinsic_calib\\2_cam_scene_sba.json'
 
@@ -30,12 +30,3 @@ print("t: " + str(t_arr[1]))
 C2 = -R_arr[1].T @ t_arr[1]
 print("C: " + str(C2))
 
-R = np.array([[1,  0, -0],
-    [ 0,  1,  0],
-    [ 0,  0,  1]]
-    )
-t = np.array([[0.00000000e+00],
- [-4.83642408e-06],
- [0.00000000e+00]])
-
-print(R @ t)

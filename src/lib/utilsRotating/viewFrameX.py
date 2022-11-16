@@ -2,7 +2,8 @@ import cv2
 import numpy as np
 import os
 
-cwd = 'C:\\Users\\user-pc\\Desktop\\11Oct2022S'
+
+cwd = 'C:\\Users\\user-pc\\Desktop\\15Nov2022'
 
 vid_path1 = os.path.join(cwd, "1.avi")
 vid_path2 = os.path.join(cwd, "2.avi")
@@ -13,7 +14,7 @@ vid_path2 = os.path.join(cwd, "2.avi")
 #vid_path1 = os.path.join(cwd, "DLC", "1DLC_resnet101_human_pretrainedFeb18shuffle1_103000_labeled.mp4")
 #vid_path2 = os.path.join(cwd, "DLC", "2DLC_resnet101_human_pretrainedFeb18shuffle1_103000_labeled.mp4")
 
-frame_num = 7000
+frame_num = 1397
 step = 1
 show_corners = 0
 
@@ -25,6 +26,11 @@ while 1:
     cap = cv2.VideoCapture(vid_path2)
     cap.set(cv2.CAP_PROP_POS_FRAMES, frame_num-1)
     res, frame2 = cap.read()
+
+
+#    alpha = 1.5
+#    beta = 60
+#    new_image = cv2.convertScaleAbs(frame1, alpha=alpha, beta=beta)
 
     if show_corners:
         ret, corners = cv2.findChessboardCorners(frame1, (9, 6), None)

@@ -2,8 +2,11 @@ import pickle
 from typing import Dict
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 
-file = "C:\\Users\\user-pc\\Desktop\\AcinoSetRotating\\data\\11Oct2022S\\results\\traj_results.pickle"
+project = "09Nov2022"
+results_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//data", project, "results")
+results_file = os.path.join(results_dir, ("traj_results.pickle")) 
 
 def load_pickle(pickle_file) -> Dict:
     """
@@ -13,14 +16,18 @@ def load_pickle(pickle_file) -> Dict:
         data = pickle.load(handle)
     return data
 
-
-opt_results = load_pickle(file)
+opt_results = load_pickle(results_file)
 
 x = opt_results['x']
 dx = opt_results['dx']
 ddx = opt_results['ddx']
 model_slack = opt_results['x_model_slack']
 slack_meas = opt_results['slack_meas']
+
+print(str(dx[0, 46]))
+print(str(ddx[0, 46]))
+print(str(ddx[0, 46]))
+
 
 meas_slack = []
 for frame in range (0, len(slack_meas)):
@@ -44,7 +51,7 @@ for frame in range(0, len(model_slack)):
     model_slack_rad.append(rad_sum)
 
 frames = np.arange(0, len(x))
-fig, axs = plt.subplots(2, 3)
+fig, axs = plt.subplots(2, 2)
 axs[0, 0].plot(frames, x[:, 45], "C0", label='Alpha')
 axs[0, 0].plot(frames, dx[:, 45], "C1", label='dAlpha')
 axs[0, 0].plot(frames, ddx[:, 45], "C2", label='ddAlpha')
@@ -68,11 +75,12 @@ axs[0, 1].set_xlabel('frame (N)')
 axs[0, 1].set_ylabel('Total Slack m/s^2 rad/s^2')
 axs[0, 1].legend()
 
-axs[0, 2].set_title("Meas Slack Per Frame")
-axs[0, 2].plot(frames, meas_slack, "C0", label='Meas Slack')
-axs[0, 2].set_xlabel('frame (N)')
-axs[0, 2].set_ylabel('Slack (pixels)')
-axs[0, 2].legend()
+axs[1, 1].set_title("Meas Slack Per Frame")
+axs[1, 1].plot(frames, meas_slack, "C0", label='Meas Slack')
+axs[1, 1].set_xlabel('frame (N)')
+axs[1, 1].set_ylabel('Slack (pixels)')
+axs[1, 1].legend()
 
 fig.tight_layout()
+plt.savefig(os.path.join(results_dir,"optimizations_plots.jpg"), dpi=100)
 plt.show()
