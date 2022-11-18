@@ -96,15 +96,15 @@ def build_model(project_dir) -> ConcreteModel:
             [0],
             [0]]])
     R_arr = np.array([[[ 1, 0,  0],
-            [ 0, 0, -1],
-            [ 0,  1, 0]],
+            [ 0, 1, 0],
+            [ 0,  0, 1]],
 
-            [[0.9990,  -0.0437,  -0.0023],
-            [0.0001,  0.0561, -0.9984],
-            [0.0437,  0.9975,  0.0561]]])
-    t_arr = np.array([[[ 0],
-                [ 0],
-                [ 0]],
+            [[0.9990,  0.0023,  -0.04373],
+            [0.0001,  0.9984, 0.0561],
+            [0.0437,  -0.0561,  0.9975]]])
+    t_arr = np.array([[[ 0.],
+                [ 0.],
+                [ 0.]],
 
                 [[-0.3684],
                 [-0.0091],
@@ -130,15 +130,16 @@ def build_model(project_dir) -> ConcreteModel:
     D3 = 3 
 
     proj_funcs = [pt3d_to_x2d, pt3d_to_y2d]
+    proj_funcs_rotating = [pt3d_to_x2d_rotating, pt3d_to_y2d_rotating]
 
     R = 0.5  # measurement standard deviation
 
     # estimate initial points
     frame_est = np.arange(N)
 
-    x_est = np.array([-0.65  for i in range(len(frame_est))])
-    y_est = np.array([9  for i in range(len(frame_est))])
-    z_est = np.array([1  for i in range(len(frame_est))])
+    x_est = np.array([1  for i in range(len(frame_est))])
+    y_est = np.array([6  for i in range(len(frame_est))])
+    z_est = np.array([0.5  for i in range(len(frame_est))])
 
     print("Started Optimisation")
     m = ConcreteModel(name="Skeleton")
@@ -150,6 +151,9 @@ def build_model(project_dir) -> ConcreteModel:
     m.C = RangeSet(C)  # number of cameras
     m.D2 = RangeSet(D2)  # dimensionality of measurements
     m.D3 = RangeSet(D3)  # dimensionality of measurements
+
+    m.MAT = RangeSet(9) # number of elements in rotation matrix
+    m.VEC = RangeSet(3) # number of elements in translation vector
 
     def init_meas_weights(model, n, c, l):
             return 1/R
@@ -177,7 +181,7 @@ def build_model(project_dir) -> ConcreteModel:
 
     # ===== VARIABLES =====
     m.x = Var(m.N, m.P)  # position # number of pose parameters (x, y, z, phi_1..n, theta_1..n, psi_1..n)
-    
+
     m.poses = Var(m.N, m.L, m.D3)
     m.slack_meas = Var(m.N, m.C, m.L, m.D2, initialize=0.0) #Update
 
@@ -187,6 +191,9 @@ def build_model(project_dir) -> ConcreteModel:
 
     m.enc_slack_meas = Var(m.N, m.C, initialize=0.0) #Update
     m.enc_slack_model = Var(m.N, m.C, initialize=0.0)
+
+    m.rot_ct0_mt0 = Var(m.MAT, m.C)
+    m.tran_cam_motor = Var(m.VEC, m.C) 
 
     # ===== VARIABLES INITIALIZATION =====
     init_x = np.zeros((N, P))
@@ -208,6 +215,21 @@ def build_model(project_dir) -> ConcreteModel:
             print(pos)
             for d3 in range(1, D3 + 1):
                 m.poses[n, l, d3].value = pos[d3 - 1]
+
+    for n in range(1, 10):
+        if (n in (1, 5, 9)):
+            m.rot_ct0_mt0[n, 1] = 1
+            m.rot_ct0_mt0[n, 2] = 1
+        else: 
+            m.rot_ct0_mt0[n, 1] = 0
+            m.rot_ct0_mt0[n, 2] = 0
+
+    for n in range(1, 10):
+        print(m.rot_ct0_mt0[n, 1].value)
+    
+    for n in range(1, 4):
+        m.tran_cam_motor[n, 1] = 0
+        m.tran_cam_motor[n, 2] = 0
 
     # ===== CONSTRAINTS =====
     # 3D POSE
@@ -253,17 +275,56 @@ def build_model(project_dir) -> ConcreteModel:
         # project
         K, D, R, t = K_arr[c - 1], D_arr[c - 1], R_arr[c - 1], t_arr[c - 1]
 
-        R =  np_rot_y(m.x_cam[n, c].value).T @ R
-        t =  np_rot_y(m.x_cam[n, c].value).T @ t
+        RA_O = np.array([[1, 0, 0],
+                       [0, 0, -1],
+                       [0, 1, 0]])
 
-        x, y, z = m.poses[n, l, 1], m.poses[n, l, 2], m.poses[n, l, 3]
+        RO_Ct0 = np.array(R)
+        Cc = np.array(-1*RO_Ct0 @ t)    
+        
+        RCt0_Mt0 = np.array([[m.rot_ct0_mt0[1, c], m.rot_ct0_mt0[2, c], m.rot_ct0_mt0[3, c]],
+                       [m.rot_ct0_mt0[4, c], m.rot_ct0_mt0[5, c], m.rot_ct0_mt0[6, c]],
+                       [m.rot_ct0_mt0[7, c], m.rot_ct0_mt0[8, c], m.rot_ct0_mt0[9, c]]])
+        #Cm = np.array([[m.tran_cam_motor[1, c], m.tran_cam_motor[2, c], m.tran_cam_motor[3, c]]]).T
+        Cm = np.array([[0, 0, 0]]).T 
 
-        return proj_funcs[d2 - 1](x, y, z, K, D, R, t) - m.meas[n, c, l, d2] - m.slack_meas[n, c, l, d2] == 0 #+m.meas = dlc points
+        RMt0_Mt1 = np_rot_y(-1*m.x_cam[n, c].value)
+
+        P_world = np.array([[m.poses[n, l, 1]],
+                           [m.poses[n, l, 2]],
+                           [m.poses[n, l, 3]]])
+
+        P_cam =  RCt0_Mt0.T @ (RMt0_Mt1 @ RCt0_Mt0 @ (RO_Ct0 @ (RA_O @ P_world - Cc) - Cm) + Cm) 
+        #P_cam = RMt0_Mt1 @ RO_Ct0 @ RA_O @ P_world + RMt0_Mt1 @ t
+
+
+        x = P_cam[0]
+        y = P_cam[1]
+        z = P_cam[2]
+
+        #print(P_cam)
+
+        #R =  np_rot_y(m.x_cam[n, c].value).T @ R @ RA_O
+        #t =  np_rot_y(m.x_cam[n, c].value).T @ t 
+
+        #x, y, z = m.poses[n, l, 1], m.poses[n, l, 2], m.poses[n, l, 3]
+
+        #return proj_funcs[d2 - 1](x, y, z, K, D, R, t) - m.meas[n, c, l, d2] - m.slack_meas[n, c, l, d2] == 0 #+m.meas = dlc points
+        return proj_funcs_rotating[d2 - 1](x, y, z, K, D) - m.meas[n, c, l, d2] - m.slack_meas[n, c, l, d2] == 0 #+m.meas = dlc points
+
     m.measurement = Constraint(m.N, m.C, m.L, m.D2, rule=measurement_constraints)
 
     def enc_measurement_constraints(m, n, c):
                 return  m.x_cam[n, c] - m.meas_enc[n, c] - m.enc_slack_meas[n, c]== 0
     m.enc_measurement = Constraint(m.N, m.C, rule=enc_measurement_constraints)
+
+    def motor_rotation_constraints(m, mat, c):
+        return abs(m.rot_ct0_mt0[mat, c]) <= 1
+    m.motor_rot_estimate = Constraint(m.MAT, m.C, rule=motor_rotation_constraints)
+
+    #def motor_translation_constraints(m, vec, c):
+    #    return abs(m.tran_cam_motor[vec, c]) <= 0.10
+    #m.motor_trans_estimate = Constraint(m.VEC, m.C, rule=motor_translation_constraints)
 
     # ======= OBJECTIVE FUNCTION =======
     def obj(m):
@@ -280,8 +341,8 @@ def build_model(project_dir) -> ConcreteModel:
             for l in range(1, L + 1): #labels
                 for c in range(1, C + 1): #cameras
                     for d2 in range(1, D2 + 1): #Dimension on measurements
-                        slack_meas_err += redescending_loss(m.meas_err_weight[n, c, l] * m.slack_meas[n, c, l, d2], 3, 5, 15)
-                        #slack_meas_err += m.meas_err_weight[n, c, l] * m.slack_meas[n, c, l, d2] **2
+                        #slack_meas_err += redescending_loss(m.meas_err_weight[n, c, l] * m.slack_meas[n, c, l, d2], 3, 5, 15)
+                        slack_meas_err += m.meas_err_weight[n, c, l] * m.slack_meas[n, c, l, d2] **2
             # Encoder Error
             for c in range(1, C + 1): # Encoder/Cameras
                 # Encoder Model Error
@@ -347,6 +408,13 @@ def convert_to_dict(m, poses) -> Dict:
                 temp.append([value(m.slack_meas[n, c, l, d]) for d in m.D2])
         x_slack_meas_optimised.append(temp)
 
+    motor_rot = []
+    motor_trans = []
+
+    for c in m.C:
+        motor_rot.append([value(m.rot_ct0_mt0[i, c]) for i in range(1, 10)])
+        motor_trans.append([value(m.tran_cam_motor[i, c]) for i in m.VEC])
+
     x_optimised = np.array(x_optimised)
     x_cam_optimised = np.array(x_cam_optimised)
     dx_cam_optimised = np.array(dx_cam_optimised)
@@ -354,9 +422,14 @@ def convert_to_dict(m, poses) -> Dict:
     x_cam_model_slack_optimised = np.array(x_cam_model_slack_optimised)
     x_slack_meas_optimised = np.array(x_slack_meas_optimised)
 
-    print(poses)
+    motor_rot = np.array(motor_rot)
+    motor_trans = np.array(motor_trans)
+
     print(x_optimised)
     print(x_cam_optimised)
+
+    print(motor_rot)
+    print(motor_trans)
 
     positions = np.array([poses(*states) for states in x_optimised[:, :45]])
     file_data = dict(
@@ -511,6 +584,21 @@ def pt3d_to_2d(x, y, z, K, D, R, t):
     v = K[1, 1] * y_P + K[1, 2]
     return u, v
 
+def pt3d_to_2d_rotating(x, y, z, K, D):    
+    # project onto camera plane
+    a = x / z
+    b = y / z
+
+    # distortion
+    r = (a ** 2 + b ** 2 + 1e-12) ** 0.5
+    th_D = (1 + D[0] * r**2 + D[1] * r**4)
+    
+    x_P = a * th_D
+    y_P = b * th_D
+    
+    u = K[0, 0] * x_P + K[0, 2]
+    v = K[1, 1] * y_P + K[1, 2]
+    return u, v
 
 def pt3d_to_x2d(x, y, z, K, D, R, t):
     u = pt3d_to_2d(x, y, z, K, D, R, t)[0]
@@ -519,6 +607,14 @@ def pt3d_to_x2d(x, y, z, K, D, R, t):
 
 def pt3d_to_y2d(x, y, z, K, D, R, t):
     v = pt3d_to_2d(x, y, z, K, D, R, t)[1]
+    return v
+
+def pt3d_to_x2d_rotating(x, y, z, K, D):
+    u = pt3d_to_2d_rotating(x, y, z, K, D)[0]
+    return u
+
+def pt3d_to_y2d_rotating(x, y, z, K, D):
+    v = pt3d_to_2d_rotating(x, y, z, K, D)[1]
     return v
 
 def pt3d_to_x2d_fisheye(x, y, z, K, D, R, t):

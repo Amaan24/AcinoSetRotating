@@ -20,7 +20,7 @@ while 1:
     cap.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
     res, frame1 = cap.read()
 
-    for i in range(10):
+    for i in range(70):
         u1 = int(mat_contents['cornerPoints'][frame_num][0][i][0])
         v1 = int(mat_contents['cornerPoints'][frame_num][0][i][1])
         frame1 = cv2.circle(frame1, (u1,v1), radius=5, color=(0, 0, 255), thickness=-1)
@@ -29,7 +29,7 @@ while 1:
     cap.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
     res, frame2 = cap.read()
 
-    for i in range(10):
+    for i in range(70):
         u2 = int(mat_contents['cornerPoints'][frame_num][1][i][0])
         v2 = int(mat_contents['cornerPoints'][frame_num][1][i][1])
         frame2 = cv2.circle(frame2, (u2,v2), radius=5, color=(0, 0, 255), thickness=-1)

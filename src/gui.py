@@ -400,7 +400,7 @@ class PageTwo(tk.Frame):
             """
             pose_dict = {}
 
-            project = "09Nov2022"
+            project = "15Nov2022"
             results_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//data", project, "results")
             results_file = os.path.join(results_dir, ("traj_results.pickle")) 
             frames_dir =  os.path.join(results_dir, "frames")

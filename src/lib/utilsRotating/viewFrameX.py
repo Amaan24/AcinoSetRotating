@@ -27,11 +27,6 @@ while 1:
     cap.set(cv2.CAP_PROP_POS_FRAMES, frame_num-1)
     res, frame2 = cap.read()
 
-
-#    alpha = 1.5
-#    beta = 60
-#    new_image = cv2.convertScaleAbs(frame1, alpha=alpha, beta=beta)
-
     if show_corners:
         ret, corners = cv2.findChessboardCorners(frame1, (9, 6), None)
         frame1corners = frame1
