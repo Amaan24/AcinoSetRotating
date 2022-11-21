@@ -285,9 +285,9 @@ def build_model(project_dir) -> ConcreteModel:
         RCt0_Mt0 = np.array([[m.rot_ct0_mt0[1, c], m.rot_ct0_mt0[2, c], m.rot_ct0_mt0[3, c]],
                        [m.rot_ct0_mt0[4, c], m.rot_ct0_mt0[5, c], m.rot_ct0_mt0[6, c]],
                        [m.rot_ct0_mt0[7, c], m.rot_ct0_mt0[8, c], m.rot_ct0_mt0[9, c]]])
-        RCt0_Mt0 = np.array([[1, 0, 0],
-                             [0, 1, 0],
-                             [0, 0, 1]])
+        #RCt0_Mt0 = np.array([[1, 0, 0],
+        #                     [0, 1, 0],
+        #                     [0, 0, 1]])
         #Cm = np.array([[m.tran_cam_motor[1, c], m.tran_cam_motor[2, c], m.tran_cam_motor[3, c]]]).T
         Cm = np.array([[0, 0, 0]]).T 
 
@@ -300,19 +300,16 @@ def build_model(project_dir) -> ConcreteModel:
         P_cam =  RCt0_Mt0.T @ (RMt0_Mt1 @ RCt0_Mt0 @ (RO_Ct0 @ (RA_O @ P_world - Cc) - Cm) + Cm) 
         #P_cam = RMt0_Mt1 @ RO_Ct0 @ RA_O @ P_world + RMt0_Mt1 @ t
 
-
         x = P_cam[0]
         y = P_cam[1]
         z = P_cam[2]
 
-        #print(P_cam)
 
         #R =  np_rot_y(m.x_cam[n, c].value).T @ R @ RA_O
         #t =  np_rot_y(m.x_cam[n, c].value).T @ t 
-
         #x, y, z = m.poses[n, l, 1], m.poses[n, l, 2], m.poses[n, l, 3]
-
         #return proj_funcs[d2 - 1](x, y, z, K, D, R, t) - m.meas[n, c, l, d2] - m.slack_meas[n, c, l, d2] == 0 #+m.meas = dlc points
+        
         return proj_funcs_rotating[d2 - 1](x, y, z, K, D) - m.meas[n, c, l, d2] - m.slack_meas[n, c, l, d2] == 0 #+m.meas = dlc points
 
     m.measurement = Constraint(m.N, m.C, m.L, m.D2, rule=measurement_constraints)
