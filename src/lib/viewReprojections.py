@@ -166,7 +166,7 @@ t_arr = np.array([[[ 0.],
 
 D_arr = D_arr.reshape((-1, 4))
 
-start_frame = 0
+start_frame = 990
 frame_num = start_frame
 cap1 = cv2.VideoCapture(vid_path1)
 cap2 = cv2.VideoCapture(vid_path2)
@@ -209,10 +209,23 @@ for frame in positions:
     RCt0_Mt0_2 = np.array([[1, 0, 0],
                     [0, 1, 0],
                     [0, 0, 1]])
+
+    #RCt0_Mt0_1 = np.array(opt_results['motor_rot'][0]).reshape(3,3)
+    #RCt0_Mt0_2 = np.array(opt_results['motor_rot'][1]).reshape(3,3)
+    
     Cm = np.array([[0, 0, 0]]).T 
 
-    RMt0_Mt1_1 = np_rot_y(-1*estEnc[frame_num-start_frame, 0])
-    RMt0_Mt1_2 = np_rot_y(-1*estEnc[frame_num-start_frame, 1])
+    #RMt0_Mt1_1 = np_rot_y(-1*estEnc[frame_num-start_frame, 0])
+    #RMt0_Mt1_2 = np_rot_y(-1*estEnc[frame_num-start_frame, 1])
+
+    RMt0_Mt1_1 = np_rot_y(-1*count_to_rad(encoder_arr[frame_num, 0]))
+    RMt0_Mt1_2 = np_rot_y(-1*count_to_rad(encoder_arr[frame_num, 1]))
+
+    print('Alpha:' + str(count_to_rad(encoder_arr[frame_num, 0])))
+    print('Estimated Alpha: ' + str(estEnc[frame_num-start_frame,0]))
+
+    print('Beta:' + str(count_to_rad(encoder_arr[frame_num, 1])))
+    print('Estimated Beta: ' + str(estEnc[frame_num-start_frame,1]))
 
     for point in frame:
         P_world = np.array([[point[0]],

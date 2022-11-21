@@ -285,6 +285,9 @@ def build_model(project_dir) -> ConcreteModel:
         RCt0_Mt0 = np.array([[m.rot_ct0_mt0[1, c], m.rot_ct0_mt0[2, c], m.rot_ct0_mt0[3, c]],
                        [m.rot_ct0_mt0[4, c], m.rot_ct0_mt0[5, c], m.rot_ct0_mt0[6, c]],
                        [m.rot_ct0_mt0[7, c], m.rot_ct0_mt0[8, c], m.rot_ct0_mt0[9, c]]])
+        RCt0_Mt0 = np.array([[1, 0, 0],
+                             [0, 1, 0],
+                             [0, 0, 1]])
         #Cm = np.array([[m.tran_cam_motor[1, c], m.tran_cam_motor[2, c], m.tran_cam_motor[3, c]]]).T
         Cm = np.array([[0, 0, 0]]).T 
 
@@ -315,7 +318,7 @@ def build_model(project_dir) -> ConcreteModel:
     m.measurement = Constraint(m.N, m.C, m.L, m.D2, rule=measurement_constraints)
 
     def enc_measurement_constraints(m, n, c):
-                return  m.x_cam[n, c] - m.meas_enc[n, c] - m.enc_slack_meas[n, c]== 0
+                return  m.x_cam[n, c] - m.meas_enc[n, c] == 0 #- m.enc_slack_meas[n, c]== 0
     m.enc_measurement = Constraint(m.N, m.C, rule=enc_measurement_constraints)
 
     def motor_rotation_constraints(m, mat, c):
@@ -422,14 +425,14 @@ def convert_to_dict(m, poses) -> Dict:
     x_cam_model_slack_optimised = np.array(x_cam_model_slack_optimised)
     x_slack_meas_optimised = np.array(x_slack_meas_optimised)
 
-    motor_rot = np.array(motor_rot)
-    motor_trans = np.array(motor_trans)
+    motor_rot_optimised = np.array(motor_rot)
+    motor_trans_optimised = np.array(motor_trans)
 
     print(x_optimised)
     print(x_cam_optimised)
 
-    print(motor_rot)
-    print(motor_trans)
+    print(motor_rot_optimised)
+    print(motor_trans_optimised)
 
     positions = np.array([poses(*states) for states in x_optimised[:, :45]])
     file_data = dict(
@@ -439,7 +442,10 @@ def convert_to_dict(m, poses) -> Dict:
         dx_cam=dx_cam_optimised,
         ddx_cam=ddx_cam_optimised,
         x_cam_model_slack=x_cam_model_slack_optimised,
-        slack_meas=x_slack_meas_optimised
+        slack_meas=x_slack_meas_optimised,
+
+        motor_rot=motor_rot_optimised,
+        motor_trans=motor_trans_optimised
         )
 
     return file_data
