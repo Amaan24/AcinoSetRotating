@@ -377,8 +377,8 @@ class PageTwo(tk.Frame):
             #a.set_yticks([])
             #a.set_zticks([])
 
-            a.set_xlim3d(-2, 2)
-            a.set_ylim3d(5, 9)
+            a.set_xlim3d(-12, -8)
+            a.set_ylim3d(4, 8)
             a.set_zlim3d(-1.5,1.5)
 
             canvas = FigureCanvasTkAgg(f, self)
@@ -400,7 +400,8 @@ class PageTwo(tk.Frame):
             """
             pose_dict = {}
 
-            project = "15Nov2022"
+            project = "FinalHumanRig"
+            project = "FinalHumanGoPro"
             results_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//data", project, "results")
             results_file = os.path.join(results_dir, ("traj_results.pickle")) 
             frames_dir =  os.path.join(results_dir, "frames")
@@ -416,8 +417,8 @@ class PageTwo(tk.Frame):
                         ['shoulder1', 'elbow1'], ['shoulder2', 'elbow2'], ['elbow1', 'wrist1'], ['elbow2', 'wrist2'], ['hip1', 'hip2'], ['hip1', 'knee1'], ['hip2', 'knee2'],
                         ['knee1', 'ankle1'], ['knee2', 'ankle2']]
             
-            markers = ["forehead", "chin", "neck", "shoulder1", "shoulder2", "elbow1", "elbow2",
-                "wrist1", "wrist2", "pelvis", "hip1", "hip2", "knee1", "knee2", "ankle1", "ankle2"]
+            markers = ["forehead", "chin", "neck", "shoulder1", "elbow1", "wrist1", "shoulder2", "elbow2",
+                "wrist2", "pelvis", "hip1", "hip2", "knee1","ankle1", "knee2", "ankle2"]
 
             for i in range(len(markers)):
                 point = [positions[frame][i][0], positions[frame][i][1], positions[frame][i][2]]

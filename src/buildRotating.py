@@ -46,7 +46,7 @@ def build_model(project_dir) -> ConcreteModel:
     R0_I = RI_0.T
     RI_1 = rot_z(psi[1]) @ rot_x(phi[1]) @ rot_y(theta[1]) @ RI_0 # neck to forehead
     R1_I = RI_1.T
-    RI_2 = rot_y(theta[2]) @ RI_1 # Torso to neck
+    RI_2 = rot_y(theta[2]) @ RI_1 # Torso to neck rot_z(psi[1]) @ rot_x(phi[1]) @ 
     R2_I = RI_2.T
     RI_3 = rot_z(psi[3]) @ rot_x(phi[3]) @ rot_y(theta[3]) @ RI_2 #Left shoulder1 to torso
     R3_I = RI_3.T
@@ -74,21 +74,21 @@ def build_model(project_dir) -> ConcreteModel:
     
     # SYMBOLIC CHEETAH POSE POSITIONS
     p_head         = sp.Matrix([x, y, z])
-    p_chin         = p_head         + R0_I  @ sp.Matrix([0, 0, -0.2])
-    p_neck         = p_head         + R0_I  @ sp.Matrix([-0.1, 0, -0.25])
-    p_shoulder1    = p_neck         + R2_I  @ sp.Matrix([0, 0.18, 0])
-    p_shoulder2    = p_neck         + R2_I  @ sp.Matrix([0, -0.18, 0])
-    p_elbow1       = p_shoulder1    + R3_I  @ sp.Matrix([0, 0, -0.31])
-    p_elbow2       = p_shoulder2    + R4_I  @ sp.Matrix([0, 0, -0.31])
-    p_wrist1       = p_elbow1       + R5_I  @ sp.Matrix([0, 0, -0.27])
-    p_wrist2       = p_elbow2       + R6_I  @ sp.Matrix([0, 0, -0.27])
-    p_pelvis       = p_neck         + R2_I  @ sp.Matrix([0, 0, -0.5]) #check this
-    p_hip1         = p_pelvis       + R7_I  @ sp.Matrix([0, 0.10, 0])
-    p_hip2         = p_pelvis       + R7_I  @ sp.Matrix([0, -0.10, 0])
-    p_knee1        = p_hip1         + R8_I  @ sp.Matrix([0, 0, -0.45])
-    p_knee2        = p_hip2         + R9_I  @ sp.Matrix([0, 0, -0.45])
-    p_ankle1       = p_knee1        + R10_I @ sp.Matrix([0, 0, -0.45])
-    p_ankle2       = p_knee2        + R11_I @ sp.Matrix([0, 0, -0.45])
+    p_chin         = p_head         + R0_I  @ sp.Matrix([0, 0, -0.18])
+    p_neck         = p_head         + R0_I  @ sp.Matrix([-0.1, 0, -0.23])
+    p_shoulder1    = p_neck         + R2_I  @ sp.Matrix([0, 0.18, -0.02])
+    p_shoulder2    = p_neck         + R2_I  @ sp.Matrix([0, -0.18, -0.02])
+    p_elbow1       = p_shoulder1    + R3_I  @ sp.Matrix([0, 0, -0.28])
+    p_elbow2       = p_shoulder2    + R4_I  @ sp.Matrix([0, 0, -0.28])
+    p_wrist1       = p_elbow1       + R5_I  @ sp.Matrix([0, 0, -0.25])
+    p_wrist2       = p_elbow2       + R6_I  @ sp.Matrix([0, 0, -0.25])
+    p_pelvis       = p_neck         + R2_I  @ sp.Matrix([0, 0, -0.55]) #check this
+    p_hip1         = p_pelvis       + R7_I  @ sp.Matrix([0, 0.09, 0])
+    p_hip2         = p_pelvis       + R7_I  @ sp.Matrix([0, -0.09, 0])
+    p_knee1        = p_hip1         + R8_I  @ sp.Matrix([0, 0, -0.5])
+    p_knee2        = p_hip2         + R9_I  @ sp.Matrix([0, 0, -0.5])
+    p_ankle1       = p_knee1        + R10_I @ sp.Matrix([0, 0, -0.5])
+    p_ankle2       = p_knee2        + R11_I @ sp.Matrix([0, 0, -0.5])
 
 
     # ========= LAMBDIFY SYMBOLIC FUNCTIONS ========
@@ -112,42 +112,41 @@ def build_model(project_dir) -> ConcreteModel:
         synced_data = pickle.load(handle)
 
     enc1 = np.reshape(synced_data['enc1tick'], (-1, 1))
-    enc1 = np.reshape(synced_data['enc1tick'][:10962], (-1, 1))
     enc2 = np.reshape(synced_data['enc2tick'], (-1, 1))
 
     encoder_arr = np.hstack((enc1, enc2))
     #encoder_arr = np.zeros((10000, 2)) 
 
-    K_arr = np.array([[[ 1901.2, 0,  585.8],
-            [ 0, 1895.0, 438.5],
+    K_arr = np.array([[[ 1958.3, 0,  642.9],
+            [ 0, 1959.9, 417.2],
             [ 0,  0, 1]],
 
-            [[ 1923.3,  0,  538.2],
-            [ 0,  1917.7, 403.3],
+            [[ 1981.1,  0,  615.9],
+            [ 0,  1982.4, 383.2],
             [0,  0,  1]]])
-    D_arr = np.array([[[-0.5403],
-            [0.3943],
+    D_arr = np.array([[[-0.5085],
+            [0.3268],
             [0],
             [0]],
 
-            [[-0.5662],
-            [ 0.4610],
+            [[-0.5150],
+            [ 0.3156],
             [0],
             [0]]])
     R_arr = np.array([[[ 1, 0,  0],
             [ 0, 0, -1],
             [ 0,  1, 0]],
 
-            [[0.9846,  0.1693,  -0.0442],
-            [-0.0512,  0.0370, -0.9980],
-            [-0.1693,  0.9849,  0.0451]]])
+            [[1,  0.0058,  -0.0021],
+            [-0.0021,  0.0006, -1],
+            [-0.0058,  1,  0.006]]])
     t_arr = np.array([[[ 0],
                 [ 0],
                 [ 0]],
 
-                [[-0.3344],
-                [0.001],
-                [0.1263]]])
+                [[-0.5150],
+                [-0.0015],
+                [0.0606]]])
                 
     #K_arr, D_arr, R_arr, t_arr, _ = utils.load_scene(scene_path)
 
@@ -223,9 +222,9 @@ def build_model(project_dir) -> ConcreteModel:
     #y_est = np.array([forehead_points[start_frame + i][1]  for i in range(len(frame_est))])
     #z_est = np.array([forehead_points[start_frame + i][2]  for i in range(len(frame_est))])
 
-    x_est = np.array([-0.65  for i in range(len(frame_est))])
-    y_est = np.array([9  for i in range(len(frame_est))])
-    z_est = np.array([1  for i in range(len(frame_est))])
+    x_est = np.array([0  for i in range(len(frame_est))])
+    y_est = np.array([6  for i in range(len(frame_est))])
+    z_est = np.array([0.7  for i in range(len(frame_est))])
 
     alpha_est = np.array([pc.count_to_rad(encoder_arr[start_frame + i][0]) for i in range (len(frame_est))])
     beta_est = np.array([pc.count_to_rad(encoder_arr[start_frame + i][1]) for i in range (len(frame_est))])
@@ -356,14 +355,9 @@ def build_model(project_dir) -> ConcreteModel:
         K, D, R, t = K_arr[c - 1], D_arr[c - 1], R_arr[c - 1], t_arr[c - 1]
 
         p = 45 + c
-        if p == 45:
-            R =  np_rot_y(m.x[n, p].value).T @ R
-            t =  np_rot_y(m.x[n, p].value).T @ t
-        else:
-            R =  np_rot_y(m.x[n, p].value).T @ R
-            t =  np_rot_y(m.x[n, p].value).T @ t
 
-
+        R =  np_rot_y(m.x[n, p].value).T @ R
+        t =  np_rot_y(m.x[n, p].value).T @ t
         x, y, z = m.poses[n, l, 1], m.poses[n, l, 2], m.poses[n, l, 3]
 
         return proj_funcs[d2 - 1](x, y, z, K, D, R, t) - m.meas[n, c, l, d2] - m.slack_meas[n, c, l, d2] == 0 #+m.meas = dlc points
@@ -402,13 +396,13 @@ def build_model(project_dir) -> ConcreteModel:
 
     #Torso
     def torso_phi_1(m,n):
-       return abs(m.x[n,6]) <= 0
+       return abs(m.x[n,6]) <= np.pi/2
     m.torso_phi_1 = Constraint(m.N, rule=torso_phi_1)
     def torso_theta_1(m,n):
         return abs(m.x[n,20]) <= np.pi/2
     m.torso_theta_1 = Constraint(m.N, rule=torso_theta_1)
     def torso_psi_1(m,n):
-        return abs(m.x[n,34]) <= 0
+        return abs(m.x[n,34]) <= np.pi/2
     m.torso_psi_1 = Constraint(m.N, rule=torso_psi_1)
 
     #Left Shoulder
@@ -509,7 +503,7 @@ def build_model(project_dir) -> ConcreteModel:
     def r_knee_psi_1(m,n):
         return abs(m.x[n,43]) <= 0
     m.r_knee_psi_1 = Constraint(m.N, rule=r_knee_psi_1)
-    
+    ''''''
 
     # ======= OBJECTIVE FUNCTION =======
     def obj(m):
@@ -533,7 +527,7 @@ def build_model(project_dir) -> ConcreteModel:
                 # Encoder Model Error
                 enc_model_err += m.enc_model_err_weight * m.enc_slack_model[n, c] ** 2
                 # Encoder Measurement Error
-                enc_meas_err += m.enc_err_weight * m.enc_slack_meas[n, c]**2 #Removed - Assuming zero encoder meas error!
+                #enc_meas_err += m.enc_err_weight * m.enc_slack_meas[n, c]**2 #Removed - Assuming zero encoder meas error!
 
         return slack_meas_err + slack_model_err + enc_meas_err + enc_model_err
 

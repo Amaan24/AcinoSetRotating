@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from utils import load_scene
 import cv2
+import scipy.io as sio
 
 def load_pickle(pickle_file) -> Dict:
     """
@@ -108,68 +109,53 @@ def count_to_rad(enc_count):
     ang = enc_count * 2 * np.pi / 102000
     return ang
 
-cwd = "C:\\Users\\user-pc\\Desktop\\AcinoSetRotating\\data\\15Nov2022\\"
-vid_dir = "C:\\Users\\user-pc\\Desktop\\15Nov2022"
-vid_path1 = os.path.join(vid_dir, "1_trimmed.avi")
-vid_path2 = os.path.join(vid_dir, "2_trimmed.avi")
+cwd = "C:\\Users\\user-pc\\Desktop\\AcinoSetRotating\\data\\FinalHumanRig\\"
+cwd = "C:\\Users\\user-pc\\Desktop\\AcinoSetRotating\\data\\FinalHumanGoPro\\"
+#vid_dir = "C:\\Users\\user-pc\\Desktop\\24Nov2022"
+vid_dir = "C:\\Users\\user-pc\\Desktop\\FinalHuman\\Recon\\Rig"
+vid_dir = "C:\\Users\\user-pc\\Desktop\\FinalHuman\\Recon\\GoPro"
+vid_path1 = os.path.join(vid_dir, "1_Synced.avi")
+vid_path2 = os.path.join(vid_dir, "2_Synced.avi")
+vid_path1 = os.path.join(vid_dir, "GPLSynced.avi")
+vid_path2 = os.path.join(vid_dir, "GPRSynced.avi")
 results = os.path.join(cwd, 'results\\traj_results.pickle')
 scene_path = os.path.join(cwd, "extrinsic_calib", "2_cam_scene_sba.json")
-encoder_path = os.path.join(cwd, "synced_data.pkl")
+#encoder_path = os.path.join(cwd, "synced_data.pkl")
 
 #Load 3D Points from trajectory optimization
 opt_results = load_pickle(results)
-positions = [opt_results['positions'][0]]*5000
+#positions = [[[0, , 0]]]*5000
 positions = opt_results['positions']
+print(positions)
 #Open encoder files for R and t changes
-with open(encoder_path, 'rb') as handle:
-    synced_data = pickle.load(handle)
+#with open(encoder_path, 'rb') as handle:
+#    synced_data = pickle.load(handle)
 
-enc1 = np.reshape(synced_data['enc1tick'], (-1, 1))
-enc2 = np.reshape(synced_data['enc2tick'], (-1, 1))
-encoder_arr = np.hstack((enc1, enc2))
-
-estEnc = np.reshape(opt_results['x_cam'], (-1,2))
+#enc1 = np.reshape(synced_data['enc1tick'], (-1, 1))
+#enc2 = np.reshape(synced_data['enc2tick'], (-1, 1))
+#encoder_arr = np.hstack((enc1, enc2))
+encoder_arr = np.zeros((25000,2))
+estEnc = np.reshape(opt_results['x'][:, 42:44], (-1,2))
 
 #Load Camera intrinsics and initial extrinsics
 #K_arr, D_arr, R_arr, t_arr, _ = load_scene(scene_path)
 
-K_arr = np.array([[[ 1901.2, 0,  585.8],
-        [ 0, 1895.0, 438.5],
-        [ 0,  0, 1]],
+#Load Camera intrinsics and initial extrinsics from matlab mat file
+mat_contents = sio.loadmat('C:\\Users\\user-pc\\Desktop\\FinalHuman\\Recon\\extrinsicsRigLRigR.mat')
+mat_contents = sio.loadmat('C:\\Users\\user-pc\\Desktop\\FinalHuman\\Recon\\extrinsicsGPLGPR.mat')
 
-        [[ 1923.3,  0,  538.2],
-        [ 0,  1917.7, 403.3],
-        [0,  0,  1]]])
-D_arr = np.array([[[-0.5403],
-        [0.3943],
-        [0],
-        [0]],
+K_arr = np.array([mat_contents['k1'], mat_contents['k2']])
+D_arr = np.array([mat_contents['d1'][0][0:4], mat_contents['d2'][0][0:4]])
+R_arr = np.array([mat_contents['r1'], mat_contents['r2']])
+t_arr = np.array([mat_contents['t1'][0], mat_contents['t2'][0]])
+print(t_arr)
 
-        [[-0.5662],
-        [ 0.4610],
-        [0],
-        [0]]])
-R_arr = np.array([[[ 1, 0,  0],
-        [ 0, 1, 0],
-        [ 0,  0, 1]],
-
-        [[0.9990,  0.0023,  -0.04373],
-        [0.0001,  0.9984, 0.0561],
-        [0.0437,  -0.0561,  0.9975]]])
-t_arr = np.array([[[ 0.],
-            [ 0.],
-            [ 0.]],
-
-            [[-0.3684],
-            [-0.0091],
-            [0.1081]]])
-
-D_arr = D_arr.reshape((-1, 4))
-
-start_frame = 990
+#start_frame = 11350
+start_frame = 11475 
 frame_num = start_frame
 cap1 = cv2.VideoCapture(vid_path1)
 cap2 = cv2.VideoCapture(vid_path2)
+count = 0
 for frame in positions:
     cap1.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
     res, frame1 = cap1.read()
@@ -177,67 +163,38 @@ for frame in positions:
     cap2.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
     res, frame2 = cap2.read()
 
-    '''
     K1, D1, R1, t1 = K_arr[0], D_arr[0], R_arr[0], t_arr[0]
-    R1 =  np_rot_y(count_to_rad(encoder_arr[frame_num, 0])).T @ R1
+    R1 =  np_rot_y(count_to_rad(encoder_arr[frame_num, 0])).T @ R1 
     t1 =  np_rot_y(count_to_rad(encoder_arr[frame_num, 0])).T @ t1
     print('Alpha:' + str(count_to_rad(encoder_arr[frame_num, 0])))
-    print('Estimated Alpha: ' + str(estEnc[frame_num-start_frame,0]))
+
+    R1_slack = np.array(opt_results['rot_slack'][count][0]).reshape((3,3))
+    t1_slack = np.array(opt_results['trans_slack'][count][0]).reshape((1,3))
+
+    #R1 = R1 + R1_slack
+    #t1 =  t1 + t1_slack
+
+    #print('Estimated Alpha: ' + str(estEnc[frame_num-start_frame,0]))
 
     K2, D2, R2, t2 = K_arr[1], D_arr[1], R_arr[1], t_arr[1]
-    R2 =   np_rot_y(count_to_rad(encoder_arr[frame_num, 1])).T @ R2
+    R2 =   np_rot_y(count_to_rad(encoder_arr[frame_num, 1])).T @ R2 
     t2 =   np_rot_y(count_to_rad(encoder_arr[frame_num, 1])).T @ t2
     print('Beta:' + str(count_to_rad(encoder_arr[frame_num, 1])))
-    print('Estimated Beta: ' + str(estEnc[frame_num-start_frame,1]))
-    '''
-    K1, D1, R1, t1 = K_arr[0], D_arr[0], R_arr[0], t_arr[0]
-    K2, D2, R2, t2 = K_arr[1], D_arr[1], R_arr[1], t_arr[1]
-
-    RA_O = np.array([[1, 0, 0],
-                    [0, 0, -1],
-                    [0, 1, 0]])
-
-    RO_Ct0_1 = np.array(R1)
-    Cc_1 = np.array(-1*RO_Ct0_1 @ t1)
-
-    RO_Ct0_2 = np.array(R2)
-    Cc_2 = np.array(-1*RO_Ct0_2 @ t2)  
-
-    RCt0_Mt0_1 = np.array([[1, 0, 0],
-                    [0, 1, 0],
-                    [0, 0, 1]])
-    RCt0_Mt0_2 = np.array([[1, 0, 0],
-                    [0, 1, 0],
-                    [0, 0, 1]])
-
-    #RCt0_Mt0_1 = np.array(opt_results['motor_rot'][0]).reshape(3,3)
-    #RCt0_Mt0_2 = np.array(opt_results['motor_rot'][1]).reshape(3,3)
+    #print('Estimated Beta: ' + str(estEnc[frame_num-start_frame,1]))
     
-    Cm = np.array([[0, 0, 0]]).T 
+    R2_slack = np.array(opt_results['rot_slack'][count][1]).reshape((3,3))
+    t2_slack = np.array(opt_results['trans_slack'][count][1]).reshape((1,3))
 
-    #RMt0_Mt1_1 = np_rot_y(-1*estEnc[frame_num-start_frame, 0])
-    #RMt0_Mt1_2 = np_rot_y(-1*estEnc[frame_num-start_frame, 1])
+    #R2 = R2 + R2_slack
+    #t2 =  t2 + t2_slack
 
-    RMt0_Mt1_1 = np_rot_y(-1*count_to_rad(encoder_arr[frame_num, 0]))
-    RMt0_Mt1_2 = np_rot_y(-1*count_to_rad(encoder_arr[frame_num, 1]))
-
-    print('Alpha:' + str(count_to_rad(encoder_arr[frame_num, 0])))
-    print('Estimated Alpha: ' + str(estEnc[frame_num-start_frame,0]))
-
-    print('Beta:' + str(count_to_rad(encoder_arr[frame_num, 1])))
-    print('Estimated Beta: ' + str(estEnc[frame_num-start_frame,1]))
+    count += 1
 
     for point in frame:
-        P_world = np.array([[point[0]],
-                           [point[1]],
-                           [point[2]]])
-
-        P_cam_1 =  RCt0_Mt0_1.T @ (RMt0_Mt1_1 @ RCt0_Mt0_1 @ (RO_Ct0_1 @ (RA_O @ P_world - Cc_1) - Cm) + Cm)
-        u1, v1 = pt3d_to_2d_rotating(P_cam_1[0], P_cam_1[1], P_cam_1[2], K1, D1)
+        u1, v1 = pt3d_to_2d_fisheye(point[0], point[1], point[2], K1, D1, R1, t1)
         frame1 = cv2.circle(frame1, (int(u1),int(v1)), radius=5, color=(0, 0, 255), thickness=-1)
 
-        P_cam_2 =  RCt0_Mt0_2.T @ (RMt0_Mt1_2 @ RCt0_Mt0_2 @ (RO_Ct0_2 @ (RA_O @ P_world - Cc_2) - Cm) + Cm)
-        u2, v2 = pt3d_to_2d_rotating(P_cam_2[0], P_cam_2[1], P_cam_2[2], K2, D2)
+        u2, v2 = pt3d_to_2d_fisheye(point[0], point[1], point[2], K2, D2, R2, t2)
         frame2 = cv2.circle(frame2, (int(u2),int(v2)), radius=5, color=(0, 0, 255), thickness=-1)
 
     cv2.imshow('Frame 1', frame1)

@@ -3,10 +3,7 @@ import numpy as np
 from typing import Dict
 import os
 
-# cwd = 'C:\\Users\\user-pc\\Desktop\\19Aug2022'
-file = "C:\\Users\\user-pc\\Desktop\\15Nov2022\\synced_data.pkl"
-# file = "C:\\Users\\user-pc\\Desktop\\AcinoSet\\skeletons\\new_human.pickle"
-# file = 'C:\\Users\\user-pc\\Desktop\\AcinoSetRotating\\data\\19Aug2022\\results\\traj_results.pickle'
+file = "C:\\Users\\user-pc\\Desktop\\FinalHuman\\Recon\\Rig\\synced_data.pkl"
 
 
 def load_pickle(pickle_file) -> Dict:
@@ -18,7 +15,7 @@ def load_pickle(pickle_file) -> Dict:
 
     return data
 
-start_frame = 5000
+start_frame = 1420
 contents = load_pickle(file)
 
 
@@ -44,5 +41,5 @@ synced_dict = {'c1ts': c1ts,
                'c1enc2offset': c1enc2offset
                }
 
-#with open('C:\\Users\\user-pc\\Desktop\\15Nov2022\\synced_data_trimmed.pkl', 'wb') as f:
+#with open('C:\\Users\\user-pc\\Desktop\\FinalHuman\\Recon\\Rig\\synced_data_trimmed.pkl', 'wb') as f:
 #    pickle.dump(synced_dict, f)

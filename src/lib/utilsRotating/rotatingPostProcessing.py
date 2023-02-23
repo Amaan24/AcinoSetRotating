@@ -9,8 +9,9 @@ import pickle
 # Specify working directory and relevant file names
 import numpy as np
 
-cwd = 'C:\\Users\\user-pc\\Desktop\\15Nov2022'
-date = '2022_11_15_11_55'
+cwd = 'C:\\Users\\user-pc\\Desktop\\19Jan2023\\MovingCB'
+date = '2023_01_19_04_56'
+#date2 = '2022_11_24_01_13'
 
 vid1 = os.path.join(cwd, ('1_video-' + date + '.mp4'))
 vid2 = os.path.join(cwd, ('2_video-' + date + '.mp4'))
@@ -48,7 +49,6 @@ if not skipped1 or not skipped2:
 
 print(skipped1)
 print(skipped2)
-
 
 # Try creating folders for stream 1 and 2
 dir1 = os.path.join(cwd, '1')

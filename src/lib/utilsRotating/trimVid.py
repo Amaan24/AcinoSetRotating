@@ -2,15 +2,15 @@ import cv2
 import numpy as np
 import os
 
-cwd = 'C:\\Users\\user-pc\\Desktop\\15Nov2022'
+cwd = 'C:\\Users\\user-pc\\Desktop\\FinalHuman\\Recon\\Rig'
 
 vid_path1 = os.path.join(cwd, "1.avi")
 vid_path2 = os.path.join(cwd, "2.avi")
 
-out_path1 = os.path.join(cwd, "1_trimmed.avi")
-out_path2 = os.path.join(cwd, "2_trimmed.avi")
+out_path1 = os.path.join(cwd, "1_Synced.avi")
+out_path2 = os.path.join(cwd, "2_Synced.avi")
 
-frame = 5000
+frame = 1421
 
 cap1 = cv2.VideoCapture(vid_path1)
 cap1.set(cv2.CAP_PROP_POS_FRAMES, frame - 1)

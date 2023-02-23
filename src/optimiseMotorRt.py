@@ -46,19 +46,15 @@ def build_model(project_dir) -> ConcreteModel:
 
     # SYMBOLIC CHECKERBOARD POSE POSITIONS
     p_origin        = sp.Matrix([x, y, z])
-    p_r0_c1         = p_origin + R0_I @ sp.Matrix([0, square_size, 0])
-    p_r1_c1         = p_r0_c1 + R0_I @ sp.Matrix([0, square_size, 0])
-    p_r2_c1         = p_r1_c1 + R0_I @ sp.Matrix([0, square_size, 0])
-    p_r3_c1         = p_r2_c1 + R0_I @ sp.Matrix([0, square_size, 0])
-    p_r4_c1         = p_r3_c1 + R0_I @ sp.Matrix([0, square_size, 0])
-    p_r5_c1         = p_r4_c1 + R0_I @ sp.Matrix([0, square_size, 0])
-    p_r6_c1         = p_r5_c1 + R0_I @ sp.Matrix([0, square_size, 0])
-    p_r7_c1         = p_r6_c1 + R0_I @ sp.Matrix([0, square_size, 0])
-    p_r8_c1         = p_r7_c1 + R0_I @ sp.Matrix([0, square_size, 0])
-    p_r9_c1         = p_r8_c1 + R0_I @ sp.Matrix([0, square_size, 0])
+    p_r0_c1         = p_origin + R0_I @ sp.Matrix([-square_size, 0, 0])
+    p_r0_c2         = p_r0_c1 + R0_I @ sp.Matrix([-square_size, 0, 0])
+    p_r0_c3         = p_r0_c2 + R0_I @ sp.Matrix([-square_size, 0, 0])
+    p_r0_c4         = p_r0_c3 + R0_I @ sp.Matrix([-square_size, 0, 0])
+    p_r0_c5         = p_r0_c4 + R0_I @ sp.Matrix([-square_size, 0, 0])
+    p_r0_c6         = p_r0_c5 + R0_I @ sp.Matrix([-square_size, 0, 0])
 
     # ========= LAMBDIFY SYMBOLIC FUNCTIONS ========
-    positions = sp.Matrix([p_origin.T, p_r0_c1.T, p_r1_c1.T])
+    positions = sp.Matrix([p_origin.T, p_r0_c1.T, p_r0_c2.T, p_r0_c3.T, p_r0_c4.T, p_r0_c5.T])
 
     func_map = {"sin": sin, "cos": cos, "ImmutableDenseMatrix": np.array}
     sym_list = [x, y, z, phi, theta, psi]
@@ -152,7 +148,7 @@ def build_model(project_dir) -> ConcreteModel:
     m.D2 = RangeSet(D2)  # dimensionality of measurements
     m.D3 = RangeSet(D3)  # dimensionality of measurements
 
-    m.MAT = RangeSet(9) # number of elements in rotation matrix
+    m.MAT = RangeSet(3) # number of elements in rotation matrix
     m.VEC = RangeSet(3) # number of elements in translation vector
 
     def init_meas_weights(model, n, c, l):
@@ -216,20 +212,15 @@ def build_model(project_dir) -> ConcreteModel:
             for d3 in range(1, D3 + 1):
                 m.poses[n, l, d3].value = pos[d3 - 1]
 
-    for n in range(1, 10):
-        if (n in (1, 5, 9)):
-            m.rot_ct0_mt0[n, 1] = 1
-            m.rot_ct0_mt0[n, 2] = 1
-        else: 
-            m.rot_ct0_mt0[n, 1] = 0
-            m.rot_ct0_mt0[n, 2] = 0
+    for n in range(1, 4):
+        m.rot_ct0_mt0[n, 1] = 0
+        m.rot_ct0_mt0[n, 2] = 0
 
-    for n in range(1, 10):
-        print(m.rot_ct0_mt0[n, 1].value)
     
     for n in range(1, 4):
         m.tran_cam_motor[n, 1] = 0
         m.tran_cam_motor[n, 2] = 0
+
 
     # ===== CONSTRAINTS =====
     # 3D POSE
@@ -282,9 +273,10 @@ def build_model(project_dir) -> ConcreteModel:
         RO_Ct0 = np.array(R)
         Cc = np.array(-1*RO_Ct0 @ t)    
         
-        RCt0_Mt0 = np.array([[m.rot_ct0_mt0[1, c], m.rot_ct0_mt0[2, c], m.rot_ct0_mt0[3, c]],
-                       [m.rot_ct0_mt0[4, c], m.rot_ct0_mt0[5, c], m.rot_ct0_mt0[6, c]],
-                       [m.rot_ct0_mt0[7, c], m.rot_ct0_mt0[8, c], m.rot_ct0_mt0[9, c]]])
+        RCt0_Mt0 = np_rot_x(m.rot_ct0_mt0[1, c].value) @ np_rot_y(m.rot_ct0_mt0[2, c].value) @ np_rot_z(m.rot_ct0_mt0[3, c].value)
+        #RCt0_Mt0 = np.array([[m.rot_ct0_mt0[1, c], m.rot_ct0_mt0[2, c], m.rot_ct0_mt0[3, c]],
+        #               [m.rot_ct0_mt0[4, c], m.rot_ct0_mt0[5, c], m.rot_ct0_mt0[6, c]],
+        #               [m.rot_ct0_mt0[7, c], m.rot_ct0_mt0[8, c], m.rot_ct0_mt0[9, c]]])
         #RCt0_Mt0 = np.array([[1, 0, 0],
         #                     [0, 1, 0],
         #                     [0, 0, 1]])
@@ -303,45 +295,37 @@ def build_model(project_dir) -> ConcreteModel:
         x = P_cam[0]
         y = P_cam[1]
         z = P_cam[2]
-
-
-        #R =  np_rot_y(m.x_cam[n, c].value).T @ R @ RA_O
-        #t =  np_rot_y(m.x_cam[n, c].value).T @ t 
-        #x, y, z = m.poses[n, l, 1], m.poses[n, l, 2], m.poses[n, l, 3]
-        #return proj_funcs[d2 - 1](x, y, z, K, D, R, t) - m.meas[n, c, l, d2] - m.slack_meas[n, c, l, d2] == 0 #+m.meas = dlc points
         
         return proj_funcs_rotating[d2 - 1](x, y, z, K, D) - m.meas[n, c, l, d2] - m.slack_meas[n, c, l, d2] == 0 #+m.meas = dlc points
 
     m.measurement = Constraint(m.N, m.C, m.L, m.D2, rule=measurement_constraints)
 
     def enc_measurement_constraints(m, n, c):
-                return  m.x_cam[n, c] - m.meas_enc[n, c] == 0 #- m.enc_slack_meas[n, c]== 0
+                return  m.x_cam[n, c] - m.meas_enc[n, c] - m.enc_slack_meas[n, c]== 0
     m.enc_measurement = Constraint(m.N, m.C, rule=enc_measurement_constraints)
 
     def motor_rotation_constraints(m, mat, c):
-        return abs(m.rot_ct0_mt0[mat, c]) <= 1
+        return abs(m.rot_ct0_mt0[mat, c]) <= 0.2
     m.motor_rot_estimate = Constraint(m.MAT, m.C, rule=motor_rotation_constraints)
 
     #def motor_translation_constraints(m, vec, c):
-    #    return abs(m.tran_cam_motor[vec, c]) <= 0.10
+    #    return m.tran_cam_motor[vec, c] <= 0.20
     #m.motor_trans_estimate = Constraint(m.VEC, m.C, rule=motor_translation_constraints)
+    #def motor_translation_constraints1(m, vec, c):
+    #    return m.tran_cam_motor[vec, c] >= -0.20
+    #m.motor_trans_estimate1 = Constraint(m.VEC, m.C, rule=motor_translation_constraints1)
 
     # ======= OBJECTIVE FUNCTION =======
     def obj(m):
-        slack_model_err = 0.0
         slack_meas_err = 0.0
         enc_model_err = 0.0
         enc_meas_err = 0.0
 
         for n in range(1, N + 1): #Frame
-            # Model Error
-            for p in range(1, P - 1):
-                slack_model_err += 0 #We know the checkerboard is stationary!
             # Measurement Error
             for l in range(1, L + 1): #labels
                 for c in range(1, C + 1): #cameras
                     for d2 in range(1, D2 + 1): #Dimension on measurements
-                        #slack_meas_err += redescending_loss(m.meas_err_weight[n, c, l] * m.slack_meas[n, c, l, d2], 3, 5, 15)
                         slack_meas_err += m.meas_err_weight[n, c, l] * m.slack_meas[n, c, l, d2] **2
             # Encoder Error
             for c in range(1, C + 1): # Encoder/Cameras
@@ -350,7 +334,7 @@ def build_model(project_dir) -> ConcreteModel:
                 # Encoder Measurement Error
                 enc_meas_err += m.enc_err_weight * m.enc_slack_meas[n, c]**2 #Removed - Assuming zero encoder meas error!
 
-        return slack_meas_err + slack_model_err + enc_meas_err + enc_model_err
+        return slack_meas_err + enc_meas_err + enc_model_err
 
     m.obj = Objective(rule=obj)
 
@@ -412,7 +396,7 @@ def convert_to_dict(m, poses) -> Dict:
     motor_trans = []
 
     for c in m.C:
-        motor_rot.append([value(m.rot_ct0_mt0[i, c]) for i in range(1, 10)])
+        motor_rot.append([value(m.rot_ct0_mt0[i, c]) for i in range(1, 4)])
         motor_trans.append([value(m.tran_cam_motor[i, c]) for i in m.VEC])
 
     x_optimised = np.array(x_optimised)

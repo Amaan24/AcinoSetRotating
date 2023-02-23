@@ -3,19 +3,30 @@ import numpy as np
 import os
 
 
-cwd = 'C:\\Users\\user-pc\\Desktop\\15Nov2022'
+#cwd = 'C:\\Users\\user-pc\\Desktop\\FinalHuman\\Recon\\GoPro\\'
+#cwd = 'C:\\Users\\user-pc\\Desktop\\FinalHuman\\Recon\\Rig\\'
+#cwd = 'C:\\Users\\user-pc\\Desktop\\CheetahFinalAshia'
 
-vid_path1 = os.path.join(cwd, "1.avi")
-vid_path2 = os.path.join(cwd, "2.avi")
+cwd = 'C:\\Users\\user-pc\\Desktop\\19Jan2023\\MovingCB'
 
-#vid_path1 = os.path.join(cwd, "1_trimmed.avi")
-#vid_path2 = os.path.join(cwd, "2_trimmed.avi")
+#vid_path1 = os.path.join(cwd, "1_Synced.avi")
+#vid_path2 = os.path.join(cwd, "2_Synced.avi")
+
+vid_path2 = os.path.join(cwd, "1.avi")
+vid_path1 = os.path.join(cwd, "2.avi")
+
+#vid_path1 = os.path.join(cwd, "GPLSynced.avi")
+#vid_path2 = os.path.join(cwd, "GPRSynced.avi")
+
+#vid_path1 = os.path.join(cwd, "GPLCalib.mp4")
+#vid_path2 = os.path.join(cwd, "GPRCalib.mp4")
 
 #vid_path1 = os.path.join(cwd, "DLC", "1DLC_resnet101_human_pretrainedFeb18shuffle1_103000_labeled.mp4")
 #vid_path2 = os.path.join(cwd, "DLC", "2DLC_resnet101_human_pretrainedFeb18shuffle1_103000_labeled.mp4")
 
-frame_num = 1397
-step = 1
+frame_num = 1000
+resize_scale = 0.5
+step = 25
 show_corners = 0
 
 while 1:
@@ -28,18 +39,19 @@ while 1:
     res, frame2 = cap.read()
 
     if show_corners:
-        ret, corners = cv2.findChessboardCorners(frame1, (9, 6), None)
+        ret, corners = cv2.findChessboardCorners(frame1, (8, 5), None)
         frame1corners = frame1
         if ret:
-            cv2.drawChessboardCorners(frame1corners, (9, 6), corners, ret)
+            cv2.drawChessboardCorners(frame1corners, (8, 5), corners, ret)
 
         frame2corners = frame2
         ret, corners = cv2.findChessboardCorners(frame2, (9, 6), None)
         if ret:
             cv2.drawChessboardCorners(frame2corners, (9, 6), corners, ret)
 
-    frame1_rs = cv2.resize(frame1, (0, 0), None, .75, .75)
-    frame2_rs = cv2.resize(frame2, (0, 0), None, .75, .75)
+    
+    frame1_rs = cv2.resize(frame1, (0, 0), None, resize_scale, resize_scale)
+    frame2_rs = cv2.resize(frame2, (0, 0), None, resize_scale, resize_scale)
 
     frames = np.hstack((frame1_rs, frame2_rs))
 
