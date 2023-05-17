@@ -1,7 +1,7 @@
 from os import link
 import tkinter as tk
 from turtle import color
-import pan_compensation as pc
+import lib.utilsRotating.pan_compensation as pc
 from tkinter import font as tkfont
 from tkinter import filedialog, ttk
 import os
@@ -377,7 +377,7 @@ class PageTwo(tk.Frame):
             #a.set_yticks([])
             #a.set_zticks([])
 
-            a.set_xlim3d(-12, -8)
+            a.set_xlim3d(-2, 2)
             a.set_ylim3d(4, 8)
             a.set_zlim3d(-1.5,1.5)
 
@@ -401,7 +401,6 @@ class PageTwo(tk.Frame):
             pose_dict = {}
 
             project = "FinalHumanRig"
-            project = "FinalHumanGoPro"
             results_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//data", project, "results")
             results_file = os.path.join(results_dir, ("traj_results.pickle")) 
             frames_dir =  os.path.join(results_dir, "frames")

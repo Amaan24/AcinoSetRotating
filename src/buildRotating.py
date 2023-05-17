@@ -18,7 +18,8 @@ from pyomo.opt import SolverFactory
 from pyomo.opt import SolverStatus, TerminationCondition
 from pyomo.core.base.PyomoModel import ConcreteModel
 from argparse import ArgumentParser
-import pan_compensation as pc
+import lib.utilsRotating.pan_compensation as pc
+import scipy.io as sio
 
 pose_to_3d = []
 
@@ -27,45 +28,52 @@ def build_model(project_dir) -> ConcreteModel:
     """
     Builds a pyomo human model 
     """  
-    L = 14  # number of joints in the human model
+    L = 13  # number of joints in the human model
 
-    markers = ["forehead", "chin", "neck", "shoulder1", "shoulder2", "elbow1", "elbow2",
-                "wrist1", "wrist2", "pelvis", "hip1", "hip2", "knee1", "knee2", "ankle1", "ankle2"]
+    markers = ["forehead", "chin", "neck", "shoulder1", "elbow1", "wrist1", "shoulder2", "elbow2",
+                "wrist2", "pelvis", "hip1", "hip2", "knee1","ankle1", "knee2", "ankle2"]
 
     # defines arrays of angles, velocities and accelerations
     phi = [sp.symbols(f"\\phi_{{{l}}}") for l in range(L)]
     theta = [sp.symbols(f"\\theta_{{{l}}}") for l in range(L)]
     psi = [sp.symbols(f"\\psi_{{{l}}}") for l in range(L)]
 
-    alpha =  sp.symbols("alpha") # Rotation from world to camera 1 frame
-    beta =  sp.symbols("beta") # Rotation from world to camera 2 frame
-    dalpha, dbeta = sp.symbols("\\dot{alpha} \\dot{beta}")
-    ddalpha, ddbeta = sp.symbols("\\ddot{alpha} \\ddot{beta}")
 
+    ## Rotations
     RI_0 = rot_z(psi[0]) @ rot_x(phi[0]) @ rot_y(theta[0]) # forehead to inertial
     R0_I = RI_0.T
+
     RI_1 = rot_z(psi[1]) @ rot_x(phi[1]) @ rot_y(theta[1]) @ RI_0 # neck to forehead
     R1_I = RI_1.T
-    RI_2 = rot_y(theta[2]) @ RI_1 # Torso to neck rot_z(psi[1]) @ rot_x(phi[1]) @ 
+
+    RI_2 = rot_z(psi[2]) @ rot_x(phi[2]) @ RI_1 # L Shoulder to inertial
     R2_I = RI_2.T
-    RI_3 = rot_z(psi[3]) @ rot_x(phi[3]) @ rot_y(theta[3]) @ RI_2 #Left shoulder1 to torso
+    RI_3 = rot_z(psi[3]) @ rot_x(phi[3]) @ rot_y(theta[3]) @ RI_2 # L Elbow to inertial
     R3_I = RI_3.T
-    RI_4 = rot_z(psi[4]) @ rot_x(phi[4]) @ rot_y(theta[4]) @ RI_2 #right shoulder2 to torso
+    RI_4 = rot_y(theta[4]) @ RI_3 # L wrist to inertial
     R4_I = RI_4.T
-    RI_5 = rot_y(theta[5]) @ RI_3  # left elbow1 to left shoulder1
+
+    RI_5 = rot_z(psi[5]) @ rot_x(phi[5]) @ RI_1 # R Shoulder to inertial
     R5_I = RI_5.T
-    RI_6 = rot_y(theta[6]) @ RI_4 # right elbow2 to right shoulder2
+    RI_6 = rot_z(psi[6]) @ rot_x(phi[6]) @ rot_y(theta[6]) @ RI_5 # L Elbow to inertial
     R6_I = RI_6.T
-    RI_7 = rot_z(psi[7]) @ rot_x(phi[7]) @ rot_y(theta[7]) @ RI_2 #Pelvis to torso
+    RI_7 = rot_y(theta[7]) @ RI_6 # R wrist to inertial
     R7_I = RI_7.T
-    RI_8 = rot_z(psi[8]) @ rot_x(phi[8]) @ rot_y(theta[8]) @ RI_7 #Left hip1 to pelvis
+
+    RI_8 = rot_z(psi[8]) @ RI_1 # Pelvis to inertial
     R8_I = RI_8.T
-    RI_9 = rot_z(psi[9]) @ rot_x(phi[9]) @ rot_y(theta[9]) @ RI_7 #Right hip2 to pelvis
+
+    RI_9 = rot_z(psi[9]) @ rot_x(phi[9]) @ rot_y(theta[9]) @ RI_8 # L Knee to inertial
     R9_I = RI_9.T
-    RI_10 =rot_y(theta[10]) @ RI_8 #Left knee1 to left hip1
+
+    RI_10 = rot_y(theta[10]) @ RI_9 # L Ankle to inertial
     R10_I = RI_10.T
-    RI_11 = rot_y(theta[11]) @ RI_9 #Right knee2 to right hip2
+
+    RI_11 = rot_z(psi[11]) @ rot_x(phi[11]) @ rot_y(theta[11]) @ RI_8 # R Knee to inertial
     R11_I = RI_11.T
+
+    RI_12 = rot_y(theta[12]) @ RI_11 # R Ankle to inertial
+    R12_I = RI_12.T
 
     # defines the position, velocities and accelerations in the inertial frame
     x,   y,   z   = sp.symbols("x y z")
@@ -74,27 +82,26 @@ def build_model(project_dir) -> ConcreteModel:
     
     # SYMBOLIC CHEETAH POSE POSITIONS
     p_head         = sp.Matrix([x, y, z])
-    p_chin         = p_head         + R0_I  @ sp.Matrix([0, 0, -0.18])
-    p_neck         = p_head         + R0_I  @ sp.Matrix([-0.1, 0, -0.23])
-    p_shoulder1    = p_neck         + R2_I  @ sp.Matrix([0, 0.18, -0.02])
-    p_shoulder2    = p_neck         + R2_I  @ sp.Matrix([0, -0.18, -0.02])
+    p_chin         = p_head         + R0_I  @ sp.Matrix([0, 0, -0.22])
+    p_neck         = p_head         + R1_I  @ sp.Matrix([-0.1, 0, -0.27])
+    p_shoulder1    = p_neck         + R2_I  @ sp.Matrix([0, 0.18, 0])
     p_elbow1       = p_shoulder1    + R3_I  @ sp.Matrix([0, 0, -0.28])
-    p_elbow2       = p_shoulder2    + R4_I  @ sp.Matrix([0, 0, -0.28])
-    p_wrist1       = p_elbow1       + R5_I  @ sp.Matrix([0, 0, -0.25])
-    p_wrist2       = p_elbow2       + R6_I  @ sp.Matrix([0, 0, -0.25])
-    p_pelvis       = p_neck         + R2_I  @ sp.Matrix([0, 0, -0.55]) #check this
-    p_hip1         = p_pelvis       + R7_I  @ sp.Matrix([0, 0.09, 0])
-    p_hip2         = p_pelvis       + R7_I  @ sp.Matrix([0, -0.09, 0])
-    p_knee1        = p_hip1         + R8_I  @ sp.Matrix([0, 0, -0.5])
-    p_knee2        = p_hip2         + R9_I  @ sp.Matrix([0, 0, -0.5])
-    p_ankle1       = p_knee1        + R10_I @ sp.Matrix([0, 0, -0.5])
-    p_ankle2       = p_knee2        + R11_I @ sp.Matrix([0, 0, -0.5])
-
+    p_wrist1       = p_elbow1       + R4_I  @ sp.Matrix([0, 0, -0.25])
+    p_shoulder2    = p_neck         + R5_I  @ sp.Matrix([0, -0.18, 0])
+    p_elbow2       = p_shoulder2    + R6_I  @ sp.Matrix([0, 0, -0.28])
+    p_wrist2       = p_elbow2       + R7_I  @ sp.Matrix([0, 0, -0.25])
+    p_pelvis       = p_neck         + R8_I  @ sp.Matrix([0, 0, -0.5])
+    p_hip1         = p_pelvis       + R8_I  @ sp.Matrix([0, 0.10, 0])
+    p_knee1        = p_hip1         + R9_I  @ sp.Matrix([0, 0, -0.44])
+    p_ankle1       = p_knee1        + R10_I @ sp.Matrix([0, 0, -0.42])
+    p_hip2         = p_pelvis       + R8_I  @ sp.Matrix([0, -0.10, 0])
+    p_knee2        = p_hip2         + R11_I @ sp.Matrix([0, 0, -0.44])
+    p_ankle2       = p_knee2        + R12_I @ sp.Matrix([0, 0, -0.42])
 
     # ========= LAMBDIFY SYMBOLIC FUNCTIONS ========
-    positions = sp.Matrix([p_head.T, p_chin.T, p_neck.T, p_shoulder1.T, p_shoulder2.T, 
-                    p_elbow1.T, p_elbow2.T, p_wrist1.T, p_wrist2.T, p_pelvis.T,
-                    p_hip1.T, p_hip2.T, p_knee1.T, p_knee2.T, p_ankle1.T, p_ankle2.T])
+    positions = sp.Matrix([p_head.T, p_chin.T, p_neck.T, p_shoulder1.T, p_elbow1.T, p_wrist1.T, 
+                           p_shoulder2.T, p_elbow2.T, p_wrist2.T, p_pelvis.T, p_hip1.T, p_hip2.T,
+                           p_knee1.T, p_ankle1.T, p_knee2.T, p_ankle2.T])
 
     func_map = {"sin": sin, "cos": cos, "ImmutableDenseMatrix": np.array}
     sym_list = [x, y, z, *phi, *theta, *psi]
@@ -105,52 +112,23 @@ def build_model(project_dir) -> ConcreteModel:
         lamb = sp.lambdify(sym_list, positions[i, :], modules=[func_map])
         pos_funcs.append(lamb)
 
-    scene_path = os.path.join(project_dir, "data", args.project, "extrinsic_calib", "2_cam_scene_sba.json")
-
     encoder_path = os.path.join(project_dir, "data", args.project, "synced_data.pkl")
     with open(encoder_path, 'rb') as handle:
         synced_data = pickle.load(handle)
 
     enc1 = np.reshape(synced_data['enc1tick'], (-1, 1))
     enc2 = np.reshape(synced_data['enc2tick'], (-1, 1))
-
     encoder_arr = np.hstack((enc1, enc2))
-    #encoder_arr = np.zeros((10000, 2)) 
+    #encoder_arr = np.zeros((25000,2))
 
-    K_arr = np.array([[[ 1958.3, 0,  642.9],
-            [ 0, 1959.9, 417.2],
-            [ 0,  0, 1]],
+    #Load Camera intrinsics and initial extrinsics from matlab mat file
+    camera_params_path = os.path.join(project_dir, "data", args.project, "extrinsics.mat")
+    mat_contents = sio.loadmat(camera_params_path)
 
-            [[ 1981.1,  0,  615.9],
-            [ 0,  1982.4, 383.2],
-            [0,  0,  1]]])
-    D_arr = np.array([[[-0.5085],
-            [0.3268],
-            [0],
-            [0]],
-
-            [[-0.5150],
-            [ 0.3156],
-            [0],
-            [0]]])
-    R_arr = np.array([[[ 1, 0,  0],
-            [ 0, 0, -1],
-            [ 0,  1, 0]],
-
-            [[1,  0.0058,  -0.0021],
-            [-0.0021,  0.0006, -1],
-            [-0.0058,  1,  0.006]]])
-    t_arr = np.array([[[ 0],
-                [ 0],
-                [ 0]],
-
-                [[-0.5150],
-                [-0.0015],
-                [0.0606]]])
-                
-    #K_arr, D_arr, R_arr, t_arr, _ = utils.load_scene(scene_path)
-
-    D_arr = D_arr.reshape((-1, 4))
+    K_arr = np.array([mat_contents['k1'], mat_contents['k2']])
+    D_arr = np.array([mat_contents['d1'][0][0:4], mat_contents['d2'][0][0:4]])
+    R_arr = np.array([mat_contents['r1'], mat_contents['r2']])
+    t_arr = np.array([mat_contents['t1'][0], mat_contents['t2'][0]])
 
     print(f"\n\n\nLoading data")
 
@@ -158,8 +136,6 @@ def build_model(project_dir) -> ConcreteModel:
     points_2d_df = utils.create_dlc_points_2d_file(df_paths)
     print("2d df points:")
     print(points_2d_df)
-
-    # break here
 
     def get_meas_from_df(n, c, l, d):
         n_mask = points_2d_df["frame"] == n - 1
@@ -182,40 +158,29 @@ def build_model(project_dir) -> ConcreteModel:
     h = 1 / 60  # timestep: 1/framerate
     start_frame = args.start_frame  
     N = args.end_frame - args.start_frame
-    P = 3 + len(phi) + len(theta) + len(psi) + 2
-    L = len(pos_funcs)
     C = len(K_arr)
+    P = 3 + len(phi) + len(theta) + len(psi)
+    Pc = P + C
+    L = len(pos_funcs)
     D2 = 2 
     D3 = 3 
 
     proj_funcs = [pt3d_to_x2d, pt3d_to_y2d]
-    #proj_funcs = [pt3d_to_x2d_fisheye, pt3d_to_y2d_fisheye]
 
     R = 5  # measurement standard deviation
 
     triangulate_func = calib.triangulate_points_fisheye_rotating #Fix!!
     points_2d_filtered_df = points_2d_df[points_2d_df['likelihood'] > 0.4]
-    #points_2d_filtered_df = points_2d_df[points_2d_df['frame'] < 10]
-
     print(points_2d_filtered_df)
-    points_3d_df = calib.get_pairwise_3d_points_from_df_rotating(points_2d_filtered_df, K_arr, D_arr, R_arr, t_arr, encoder_arr,
-                                                        triangulate_func) #Fix!!
-    print("3d points")
-    print(points_3d_df)
+
+    #points_3d_df = calib.get_pairwise_3d_points_from_df_rotating(points_2d_filtered_df, K_arr, D_arr, R_arr, t_arr, encoder_arr,
+    #                                                    triangulate_func) #Fix!!
+    #print("3d points")
+    #print(points_3d_df)
 
     # estimate initial points
-    #nose_pts = points_3d_df[points_3d_df["marker"]=="forehead"][["x", "y", "z", "frame"]].values
-    #xs = stats.linregress(nose_pts[:,3], nose_pts[:,0])
-    #ys = stats.linregress(nose_pts[:,3], nose_pts[:,1])
-    #zs = stats.linregress(nose_pts[:,3], nose_pts[:,2])
-    #frame_est = np.arange(N)
-    
-    #x_est = np.array([frame_est[i]*(xs.slope) + (xs.intercept) for i in range(len(frame_est))])
-    #y_est = np.array([frame_est[i]*(ys.slope) + (ys.intercept) for i in range(len(frame_est))])
-    #z_est = np.array([frame_est[i]*(zs.slope) + (zs.intercept) for i in range(len(frame_est))])
-
     # Sets the initial points uding triangulation                                                        
-    forehead_points = points_3d_df[points_3d_df["marker"] == "forehead"][["x", "y", "z", "frame" ]].values
+    #forehead_points = points_3d_df[points_3d_df["marker"] == "forehead"][["x", "y", "z", "frame" ]].values
     frame_est = np.arange(N)
 
     #x_est = np.array([forehead_points[start_frame + i][0]  for i in range(len(frame_est))])
@@ -234,7 +199,8 @@ def build_model(project_dir) -> ConcreteModel:
 
     # ===== SETS =====
     m.N = RangeSet(N)  # number of timesteps in trajectory
-    m.P = RangeSet(P)  # number of pose parameters (x, y, z, phi_1..n, theta_1..n, psi_1..n)
+    m.Pc = RangeSet(Pc)  # number of pose parameters (x, y, z, phi_1..n, theta_1..n, psi_1..n) incl cameras
+    m.P = RangeSet(P) ## number of pose parameters (x, y, z, phi_1..n, theta_1..n, psi_1..n) excl cameras
     m.L = RangeSet(L)  # number of labels
     m.C = RangeSet(C)  # number of cameras
     m.D2 = RangeSet(D2)  # dimensionality of measurements
@@ -250,9 +216,11 @@ def build_model(project_dir) -> ConcreteModel:
                               within=Any)  
 
     ## For rotating c1 and c2
-    def init_encoder_err_weight(m):
-        return ((102000*(2*np.pi)))
-    m.enc_err_weight = Param(initialize=init_encoder_err_weight, mutable=True, within=Any)
+    ##Removed as encvoder error is dominated by gearbox backlash (encoder has 102000 tciks per rev and gearbox has 1 deg backlash)
+    ##def init_encoder_err_weight(m):
+    ##    return  1/(2*np.pi*102000)**2
+    #    ticks = 2*pi rads / 102000
+    #m.enc_err_weight = Param(initialize=init_encoder_err_weight, mutable=True, within=Any)
 
     def init_model_weights(m, p):
         # if Q[p-1] != 0.0:
@@ -261,9 +229,14 @@ def build_model(project_dir) -> ConcreteModel:
         return 0.002
     m.model_err_weight = Param(m.P, initialize=init_model_weights, within=Any)
 
-    def init_enc_model_weights(m):
-        return 1/(2*np.pi*102000)**2
-    m.enc_model_err_weight = Param(initialize=init_enc_model_weights, within=Any)
+    ## For rotating c1 and c2
+    def init_enc_model_weights(m, c):
+        return 0.2 #(rad/s^2) -> Acceleration error for constant acc model
+    m.enc_model_err_weight = Param(m.C, initialize=init_enc_model_weights, within=Any)
+
+    def init_enc_meas_weights(model, n, c):
+        return 1/(np.pi/180)**2 #1/rads -> Backlash error
+    m.enc_meas_err_weight = Param(m.N, m.C, initialize=init_enc_meas_weights, mutable=True,within=Any)
 
     m.h = h
 
@@ -276,9 +249,9 @@ def build_model(project_dir) -> ConcreteModel:
     m.meas_enc = Param(m.N, m.C, initialize=init_encoder_measurements, within=Any)
 
     # ===== VARIABLES =====
-    m.x = Var(m.N, m.P)  # position # number of pose parameters (x, y, z, phi_1..n, theta_1..n, psi_1..n)
-    m.dx = Var(m.N, m.P)  # velocity
-    m.ddx = Var(m.N, m.P)  # acceleration
+    m.x = Var(m.N, m.Pc)  # position # number of pose parameters (x, y, z, phi_1..n, theta_1..n, psi_1..n)
+    m.dx = Var(m.N, m.Pc)  # velocity
+    m.ddx = Var(m.N, m.Pc)  # acceleration
 
     m.poses = Var(m.N, m.L, m.D3)
     m.slack_model = Var(m.N, m.P, initialize=0.0)
@@ -288,20 +261,20 @@ def build_model(project_dir) -> ConcreteModel:
     m.enc_slack_meas = Var(m.N, m.C, initialize=0.0)
 
     # ===== VARIABLES INITIALIZATION =====
-    init_x = np.zeros((N, P))
+    init_x = np.zeros((N, Pc))
     init_x[:, 0] = x_est  # x
     init_x[:, 1] = y_est  # 
     init_x[:, 2] = z_est  # z
 
-    init_x[:, 45] = alpha_est
-    init_x[:, 46] = beta_est
+    init_x[:, -2] = alpha_est
+    init_x[:, -1] = beta_est
 
     print(init_x)
-    
-    init_dx = np.zeros((N, P))
-    init_ddx = np.zeros((N, P))
+
+    init_dx = np.zeros((N, Pc))
+    init_ddx = np.zeros((N, Pc))
     for n in range(1, N + 1):
-        for p in range(1, P + 1):
+        for p in range(1, Pc + 1):
             if n < len(init_x):  # init using known values
                 m.x[n, p].value = init_x[n - 1, p - 1]
                 m.dx[n, p].value = init_dx[n - 1, p - 1]
@@ -311,7 +284,7 @@ def build_model(project_dir) -> ConcreteModel:
                 m.dx[n, p].value = init_dx[-1, p - 1]
                 m.ddx[n, p].value = init_ddx[-1, p - 1]
         # init pose
-        var_list = [m.x[n, p].value for p in range(1, P - 1)]
+        var_list = [m.x[n, p].value for p in range(1, P + 1)]####*********
         for l in range(1, L + 1):
             [pos] = pos_funcs[l - 1](*var_list)
             print(pos)
@@ -322,7 +295,7 @@ def build_model(project_dir) -> ConcreteModel:
     # 3D POSE
     def pose_constraint(m, n, l, d3):
         # get 3d points
-        var_list = [m.x[n, p] for p in range(1, P - 1)]
+        var_list = [m.x[n, p] for p in range(1, P + 1)]
         [pos] = pos_funcs[l - 1](*var_list)
         return pos[d3 - 1] == m.poses[n, l, d3]
     m.pose_constraint = Constraint(m.N, m.L, m.D3, rule=pose_constraint)
@@ -332,55 +305,63 @@ def build_model(project_dir) -> ConcreteModel:
             return m.x[n, p] == m.x[n - 1, p] + m.h * m.dx[n, p]
         else:
             return Constraint.Skip
-    m.integrate_p = Constraint(m.N, m.P, rule=backwards_euler_pos)
+    m.integrate_p = Constraint(m.N, m.Pc, rule=backwards_euler_pos)
 
     def backwards_euler_vel(m, n, p):  # velocity
         if n > 1:
             return m.dx[n, p] == m.dx[n - 1, p] + m.h * m.ddx[n, p]
         else:
             return Constraint.Skip
-    m.integrate_v = Constraint(m.N, m.P, rule=backwards_euler_vel)
+    m.integrate_v = Constraint(m.N, m.Pc, rule=backwards_euler_vel)
 
     # MODEL
-    def constant_acc(m, n, p):
+    def constant_acc(m, n, p): #Motors and subject
         if n > 1:
-            return m.ddx[n, p] == m.ddx[n - 1, p] + m.slack_model[n, p]
+            #IF P is last two, then encoder slack model!
+            if p <= P:
+                return m.ddx[n, p] == m.ddx[n - 1, p] + m.slack_model[n, p]
+            else:
+                return m.ddx[n, p] == m.ddx[n - 1, p] + m.enc_slack_model[n, Pc - p + 1] #TODO Fix model and meas error -> this is acceleration noise! Not dependent on backlash noise
         else:
             return Constraint.Skip
-    m.constant_acc = Constraint(m.N, m.P, rule=constant_acc)
+    m.constant_acc = Constraint(m.N, m.Pc, rule=constant_acc)
+
 
     # MEASUREMENT
     def measurement_constraints(m, n, c, l, d2):
         # project
         K, D, R, t = K_arr[c - 1], D_arr[c - 1], R_arr[c - 1], t_arr[c - 1]
 
-        p = 45 + c
+        p = P + c 
 
         R =  np_rot_y(m.x[n, p].value).T @ R
         t =  np_rot_y(m.x[n, p].value).T @ t
+
         x, y, z = m.poses[n, l, 1], m.poses[n, l, 2], m.poses[n, l, 3]
 
         return proj_funcs[d2 - 1](x, y, z, K, D, R, t) - m.meas[n, c, l, d2] - m.slack_meas[n, c, l, d2] == 0 #+m.meas = dlc points
     m.measurement = Constraint(m.N, m.C, m.L, m.D2, rule=measurement_constraints)
 
     def enc_measurement_constraints(m, n, p):
-        if (p < 45):
+        if (p <= P):
             return Constraint.Skip
         else:
-            return  m.x[n, p] - m.meas_enc[n, P - p] - m.enc_slack_meas[n, P - p]== 0
-    m.enc_measurement = Constraint(m.N, m.C, rule=enc_measurement_constraints)
+            return  m.x[n, p] - m.meas_enc[n, Pc - p + 1] - m.enc_slack_meas[n, Pc - p + 1] == 0 
+    m.enc_measurement = Constraint(m.N, m.Pc, rule=enc_measurement_constraints)
 
     
     #===== POSE CONSTRAINTS (Note 1 based indexing for pyomo!!!!...@#^!@#&) =====
+
+    ##SEPARATE abs values to seperate constraints
     #Forehead
     def head_phi_0(m,n):                                #X
         return abs(m.x[n,4]) <= np.pi*2
     m.head_phi_0 = Constraint(m.N, rule=head_phi_0)
     def head_theta_0(m,n):                              #Y
-        return abs(m.x[n,18]) <= np.pi*2
+        return abs(m.x[n,17]) <= np.pi*2
     m.head_theta_0 = Constraint(m.N, rule=head_theta_0)
     def head_psi_0(m,n):                                #Z
-        return abs(m.x[n,32]) <= np.pi*2
+        return abs(m.x[n,30]) <= np.pi*2
     m.head_psi_0 = Constraint(m.N, rule=head_psi_0)
     
     #Neck
@@ -388,148 +369,159 @@ def build_model(project_dir) -> ConcreteModel:
        return abs(m.x[n,5]) <= np.pi/4
     m.neck_phi_1 = Constraint(m.N, rule=neck_phi_1)
     def neck_theta_1(m,n):
-        return abs(m.x[n,19]) <= np.pi/2
+        return abs(m.x[n,18]) <= np.pi/2
     m.neck_theta_1 = Constraint(m.N, rule=neck_theta_1)
     def neck_psi_1(m,n):
-        return abs(m.x[n,33]) <= np.pi/4
+        return abs(m.x[n,31]) <= np.pi/4
     m.neck_psi_1 = Constraint(m.N, rule=neck_psi_1)
-
-    #Torso
-    def torso_phi_1(m,n):
-       return abs(m.x[n,6]) <= np.pi/2
-    m.torso_phi_1 = Constraint(m.N, rule=torso_phi_1)
-    def torso_theta_1(m,n):
-        return abs(m.x[n,20]) <= np.pi/2
-    m.torso_theta_1 = Constraint(m.N, rule=torso_theta_1)
-    def torso_psi_1(m,n):
-        return abs(m.x[n,34]) <= np.pi/2
-    m.torso_psi_1 = Constraint(m.N, rule=torso_psi_1)
 
     #Left Shoulder
     def l_shoulder_phi_1(m,n):
-       return abs(m.x[n,7]) <= np.pi/2
+       return abs(m.x[n,6]) <= np.pi/4
     m.l_shoulder_phi_1 = Constraint(m.N, rule=l_shoulder_phi_1)
     def l_shoulder_theta_1(m,n):
-        return abs(m.x[n,21]) <= np.pi
+        return abs(m.x[n,19]) <= 0
     m.l_shoulder_theta_1 = Constraint(m.N, rule=l_shoulder_theta_1)
     def l_shoulder_psi_1(m,n):
-        return abs(m.x[n,35]) <= np.pi
+        return abs(m.x[n,32]) <= np.pi/4
     m.l_shoulder_psi_1 = Constraint(m.N, rule=l_shoulder_psi_1)
-
-    #Right Shoulder
-    def r_shoulder_phi_1(m,n):
-       return abs(m.x[n,8]) <= np.pi/2
-    m.r_shoulder_phi_1 = Constraint(m.N, rule=r_shoulder_phi_1)
-    def r_shoulder_theta_1(m,n):
-        return abs(m.x[n,22]) <= np.pi
-    m.r_shoulder_theta_1 = Constraint(m.N, rule=r_shoulder_theta_1)
-    def r_shoulder_psi_1(m,n):
-        return abs(m.x[n,36]) <= np.pi
-    m.r_shoulder_psi_1 = Constraint(m.N, rule=r_shoulder_psi_1)
 
     #Left Elbow
     def l_elbow_phi_1(m,n):
-       return abs(m.x[n,9]) <= 0
+       return abs(m.x[n,7]) <= np.pi
     m.l_elbow_phi_1 = Constraint(m.N, rule=l_elbow_phi_1)
     def l_elbow_theta_1(m,n):
-        return abs(m.x[n,23]) <= np.pi/2
+        return abs(m.x[n,20]) <= np.pi
     m.l_elbow_theta_1 = Constraint(m.N, rule=l_elbow_theta_1)
     def l_elbow_psi_1(m,n):
-        return abs(m.x[n,37]) <= 0
+        return abs(m.x[n,33]) <= np.pi
     m.l_elbow_psi_1 = Constraint(m.N, rule=l_elbow_psi_1)
+
+    #Left wrist
+    def l_wrist_phi_1(m,n):
+       return abs(m.x[n,8]) <= 0
+    m.l_wrist_phi_1 = Constraint(m.N, rule=l_wrist_phi_1)
+    def l_wrist_theta_1(m,n):
+        return abs(m.x[n,21]) <= np.pi
+    m.l_wrist_theta_1 = Constraint(m.N, rule=l_wrist_theta_1)
+    def l_wrist_psi_1(m,n):
+        return abs(m.x[n,34]) <= 0
+    m.l_wrist_psi_1 = Constraint(m.N, rule=l_wrist_psi_1)
+
+    #Right Shoulder
+    def r_shoulder_phi_1(m,n):
+       return abs(m.x[n,9]) <= np.pi/4
+    m.r_shoulder_phi_1 = Constraint(m.N, rule=r_shoulder_phi_1)
+    def r_shoulder_theta_1(m,n):
+        return abs(m.x[n,22]) <= 0
+    m.r_shoulder_theta_1 = Constraint(m.N, rule=r_shoulder_theta_1)
+    def r_shoulder_psi_1(m,n):
+        return abs(m.x[n,35]) <= np.pi/4
+    m.r_shoulder_psi_1 = Constraint(m.N, rule=r_shoulder_psi_1)
 
     #Right Elbow
     def r_elbow_phi_1(m,n):
-       return abs(m.x[n,10]) <= 0
+       return abs(m.x[n,10]) <= np.pi
     m.r_elbow_phi_1 = Constraint(m.N, rule=r_elbow_phi_1)
     def r_elbow_theta_1(m,n):
-        return abs(m.x[n,24]) <= np.pi/2
+        return abs(m.x[n,23]) <= np.pi
     m.r_elbow_theta_1 = Constraint(m.N, rule=r_elbow_theta_1)
     def r_elbow_psi_1(m,n):
-        return abs(m.x[n,38]) <= 0
+        return abs(m.x[n,36]) <= np.pi
     m.r_elbow_psi_1 = Constraint(m.N, rule=r_elbow_psi_1)
 
+    #Right wrist
+    def r_wrist_phi_1(m,n):
+       return abs(m.x[n,11]) <= 0
+    m.r_wrist_phi_1 = Constraint(m.N, rule=r_wrist_phi_1)
+    def r_wrist_theta_1(m,n):
+        return abs(m.x[n,24]) <= np.pi
+    m.r_wrist_theta_1 = Constraint(m.N, rule=r_wrist_theta_1)
+    def r_wrist_psi_1(m,n):
+        return abs(m.x[n,37]) <= 0
+    m.r_wrist_psi_1 = Constraint(m.N, rule=r_wrist_psi_1)
+    
     #Pelvis
     def pelvis_phi_1(m,n):
-       return abs(m.x[n,11]) <= np.pi/6
+       return abs(m.x[n,12]) <= 0
     m.pelvis_phi_1 = Constraint(m.N, rule=pelvis_phi_1)
     def pelvis_theta_1(m,n):
-        return abs(m.x[n,25]) <= np.pi/6
+        return abs(m.x[n,25]) <= 0
     m.pelvis_theta_1 = Constraint(m.N, rule=pelvis_theta_1)
     def pelvis_psi_1(m,n):
-        return abs(m.x[n,39]) <= np.pi/2
+        return abs(m.x[n,38]) <= np.pi/4
     m.pelvis_psi_1 = Constraint(m.N, rule=pelvis_psi_1)
 
-    #Left Hip
-    def l_hip_phi_1(m,n):
-       return abs(m.x[n,12]) <= np.pi/2
-    m.l_hip_phi_1 = Constraint(m.N, rule=l_hip_phi_1)
-    def l_hip_theta_1(m,n):
-        return abs(m.x[n,26]) <= np.pi/2
-    m.l_hip_theta_1 = Constraint(m.N, rule=l_hip_theta_1)
-    def l_hip_psi_1(m,n):
-        return abs(m.x[n,40]) <= np.pi/2
-    m.l_hip_psi_1 = Constraint(m.N, rule=l_hip_psi_1)
-
-    #Left Knee
+    #Left knee    
     def l_knee_phi_1(m,n):
-       return abs(m.x[n,13]) <= 0
+       return abs(m.x[n,13]) <= np.pi
     m.l_knee_phi_1 = Constraint(m.N, rule=l_knee_phi_1)
     def l_knee_theta_1(m,n):
-        return abs(m.x[n,27]) <= np.pi/2
+        return abs(m.x[n,26]) <= np.pi
     m.l_knee_theta_1 = Constraint(m.N, rule=l_knee_theta_1)
     def l_knee_psi_1(m,n):
-        return abs(m.x[n,41]) <= 0
+        return abs(m.x[n,39]) <= 0
     m.l_knee_psi_1 = Constraint(m.N, rule=l_knee_psi_1)
 
-    #Right Hip
-    def r_hip_phi_1(m,n):
-       return abs(m.x[n,14]) <= np.pi/2
-    m.r_hip_phi_1 = Constraint(m.N, rule=r_hip_phi_1)
-    def r_hip_theta_1(m,n):
-        return abs(m.x[n,28]) <= np.pi/2
-    m.r_hip_theta_1 = Constraint(m.N, rule=r_hip_theta_1)
-    def r_hip_psi_1(m,n):
-        return abs(m.x[n,42]) <= np.pi/2
-    m.r_hip_psi_1 = Constraint(m.N, rule=r_hip_psi_1)
+    #Left ankle
+    def l_ankle_phi_1(m,n):
+       return abs(m.x[n,14]) <= 0
+    m.l_ankle_phi_1 = Constraint(m.N, rule=l_ankle_phi_1)
+    def l_ankle_theta_1(m,n):
+        return abs(m.x[n,27]) <= np.pi
+    m.l_ankle_theta_1 = Constraint(m.N, rule=l_ankle_theta_1)
+    def l_ankle_psi_1(m,n):
+        return abs(m.x[n,40]) <= 0
+    m.l_ankle_psi_1 = Constraint(m.N, rule=l_ankle_psi_1)
 
-    #Right Knee
+    #Right knee    
     def r_knee_phi_1(m,n):
-       return abs(m.x[n,15]) <= 0
+       return abs(m.x[n,15]) <= np.pi
     m.r_knee_phi_1 = Constraint(m.N, rule=r_knee_phi_1)
     def r_knee_theta_1(m,n):
-        return abs(m.x[n,29]) <= np.pi/2
+        return abs(m.x[n,28]) <= np.pi
     m.r_knee_theta_1 = Constraint(m.N, rule=r_knee_theta_1)
     def r_knee_psi_1(m,n):
-        return abs(m.x[n,43]) <= 0
+        return abs(m.x[n,41]) <= np.pi
     m.r_knee_psi_1 = Constraint(m.N, rule=r_knee_psi_1)
-    ''''''
+
+    #Right ankle
+    def r_ankle_phi_1(m,n):
+       return abs(m.x[n,16]) <= 0
+    m.r_ankle_phi_1 = Constraint(m.N, rule=r_ankle_phi_1)
+    def r_ankle_theta_1(m,n):
+        return abs(m.x[n,29]) <= np.pi
+    m.r_ankle_theta_1 = Constraint(m.N, rule=r_ankle_theta_1)
+    def r_ankle_psi_1(m,n):
+        return abs(m.x[n,42]) <= 0
+    m.r_ankle_psi_1 = Constraint(m.N, rule=r_ankle_psi_1)
+
 
     # ======= OBJECTIVE FUNCTION =======
     def obj(m):
         slack_model_err = 0.0
         slack_meas_err = 0.0
-        enc_model_err = 0.0
-        enc_meas_err = 0.0
+        enc_slack_model_err = 0.0
+        enc_slack_meas_err = 0.0
 
-        for n in range(1, N + 1): #Frame
+        for n in m.N: #Frame
             # Model Error
-            for p in range(1, P - 1):
+            for p in m.P:
                 slack_model_err += m.model_err_weight[p] * m.slack_model[n, p] ** 2
             # Measurement Error
-            for l in range(1, L + 1): #labels
-                for c in range(1, C + 1): #cameras
-                    for d2 in range(1, D2 + 1): #Dimension on measurements
+            for l in m.L: #labels
+                for c in m.C: #cameras
+                    for d2 in m.D2: #Dimension of measurements
                         slack_meas_err += redescending_loss(m.meas_err_weight[n, c, l] * m.slack_meas[n, c, l, d2], 3, 5, 15)
                         #slack_meas_err += m.meas_err_weight[n, c, l] * m.slack_meas[n, c, l, d2] **2
             # Encoder Error
-            for c in range(1, C + 1): # Encoder/Cameras
-                # Encoder Model Error
-                enc_model_err += m.enc_model_err_weight * m.enc_slack_model[n, c] ** 2
-                # Encoder Measurement Error
-                #enc_meas_err += m.enc_err_weight * m.enc_slack_meas[n, c]**2 #Removed - Assuming zero encoder meas error!
+            for c in m.C: # Encoder/Cameras
+                # Encoder Model Error #Model error weight -> max rads/s^2 expected
+                enc_slack_model_err += m.enc_model_err_weight[c] * m.enc_slack_model[n, c] ** 2 # 
+                # Encoder Measurement Error -> Gearbox backlash 1 deg
+                enc_slack_meas_err += redescending_loss(m.enc_meas_err_weight[n, c] * m.enc_slack_meas[n, c], 3, 5, 15)
 
-        return slack_meas_err + slack_model_err + enc_meas_err + enc_model_err
+        return slack_meas_err + slack_model_err + enc_slack_model_err + enc_slack_meas_err
 
     m.obj = Objective(rule=obj)
 
@@ -571,37 +563,41 @@ def convert_to_dict(m, poses) -> Dict:
     x_optimised = []
     dx_optimised = []
     ddx_optimised = []
-    x_model_slack_optimised = []
+    model_slack_optimised = []
+    enc_model_slack_optimised = []
     x_slack_meas_optimised = []
 
     for n in m.N:
-        x_optimised.append([value(m.x[n, p]) for p in m.P])
-        dx_optimised.append([value(m.dx[n, p]) for p in m.P])
-        ddx_optimised.append([value(m.ddx[n, p]) for p in m.P])
-        x_model_slack_optimised.append([value(m.slack_model[n, p]) for p in m.P])
-
+        x_optimised.append([value(m.x[n, p]) for p in m.Pc])
+        dx_optimised.append([value(m.dx[n, p]) for p in m.Pc])
+        ddx_optimised.append([value(m.ddx[n, p]) for p in m.Pc])
+        model_slack_optimised.append([value(m.slack_model[n, p]) for p in m.P])
+        enc_model_slack_optimised.append([value(m.slack_model[n, c]) for c in m.C])
         temp = []
-        for c in m.C:
+        for c in m.C:            
             for l in m.L:
                 temp.append([value(m.slack_meas[n, c, l, d]) for d in m.D2])
+        
         x_slack_meas_optimised.append(temp)
 
     x_optimised = np.array(x_optimised)
     dx_optimised = np.array(dx_optimised)
     ddx_optimised = np.array(ddx_optimised)
-    x_model_slack_optimised = np.array(x_model_slack_optimised)
+    model_slack_optimised = np.array(model_slack_optimised)
+    enc_model_slack_optimised = np.array(enc_model_slack_optimised)
     x_slack_meas_optimised = np.array(x_slack_meas_optimised)
 
     print(poses)
     print(x_optimised)
 
-    positions = np.array([poses(*states) for states in x_optimised[:, :45]])
+    positions = np.array([poses(*states) for states in x_optimised[:, :42]])
     file_data = dict(
         positions=positions,
         x=x_optimised,
         dx=dx_optimised,
         ddx=ddx_optimised,
-        x_model_slack=x_model_slack_optimised,
+        model_slack=model_slack_optimised,
+        enc_model_slack=enc_model_slack_optimised,
         slack_meas=x_slack_meas_optimised
         )
 

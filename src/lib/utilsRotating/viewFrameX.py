@@ -3,39 +3,28 @@ import numpy as np
 import os
 
 
-#cwd = 'C:\\Users\\user-pc\\Desktop\\FinalHuman\\Recon\\GoPro\\'
-#cwd = 'C:\\Users\\user-pc\\Desktop\\FinalHuman\\Recon\\Rig\\'
-#cwd = 'C:\\Users\\user-pc\\Desktop\\CheetahFinalAshia'
+cwd = 'C:\\Users\\user-pc\\Desktop\\25Apr2023'
+cwd = 'C:\\Users\\user-pc\\Desktop\\FinalHuman\\Recon\\Rig\\'
 
-cwd = 'C:\\Users\\user-pc\\Desktop\\19Jan2023\\MovingCB'
+#Format X__vid_name__vid_extension
+vid_name = '_labeled'
+vid_extension = '.mp4'
 
-#vid_path1 = os.path.join(cwd, "1_Synced.avi")
-#vid_path2 = os.path.join(cwd, "2_Synced.avi")
-
-vid_path2 = os.path.join(cwd, "1.avi")
-vid_path1 = os.path.join(cwd, "2.avi")
-
-#vid_path1 = os.path.join(cwd, "GPLSynced.avi")
-#vid_path2 = os.path.join(cwd, "GPRSynced.avi")
-
-#vid_path1 = os.path.join(cwd, "GPLCalib.mp4")
-#vid_path2 = os.path.join(cwd, "GPRCalib.mp4")
-
-#vid_path1 = os.path.join(cwd, "DLC", "1DLC_resnet101_human_pretrainedFeb18shuffle1_103000_labeled.mp4")
-#vid_path2 = os.path.join(cwd, "DLC", "2DLC_resnet101_human_pretrainedFeb18shuffle1_103000_labeled.mp4")
-
-frame_num = 1000
+frame_num = 6600
+step = 10
 resize_scale = 0.5
-step = 25
 show_corners = 0
+
+vid_path1 = os.path.join(cwd, "1" + vid_name + vid_extension)
+vid_path2 = os.path.join(cwd, "2" + vid_name + vid_extension)
 
 while 1:
     cap = cv2.VideoCapture(vid_path1)
-    cap.set(cv2.CAP_PROP_POS_FRAMES, frame_num-1)
+    cap.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
     res, frame1 = cap.read()
 
     cap = cv2.VideoCapture(vid_path2)
-    cap.set(cv2.CAP_PROP_POS_FRAMES, frame_num-1)
+    cap.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
     res, frame2 = cap.read()
 
     if show_corners:

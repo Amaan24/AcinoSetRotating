@@ -9,7 +9,7 @@ import time
 import pandas as pd
 import matplotlib.pyplot as plt
 
-import pan_compensation as pc
+from .utilsRotating import pan_compensation as pc
 
 # ========== STANDARD CAMERA MODEL ==========
 def calibrate_camera(obj_pts: array.Array[np.float32, ..., 3], img_pts: array.Array[np.float32, ..., ..., 2],

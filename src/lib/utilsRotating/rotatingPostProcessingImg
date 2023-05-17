@@ -1,0 +1,119 @@
+# Importing all necessary libraries
+import os
+import csv
+from tempfile import template
+import cv2
+import re
+import pickle
+from pprint import pprint
+
+# Specify working directory and relevant file names
+import numpy as np
+
+cwd = 'C:\\Users\\user-pc\\Desktop\\25Apr2023'
+date = '2023_04_25_08_37'
+
+dir1 = os.path.join(cwd, '1')
+dir2 = os.path.join(cwd, '2')
+
+encFile1 = os.path.join(cwd, ('1_encoder_vals-' + date + '.txt'))
+encFile2 = os.path.join(cwd, ('2_encoder_vals-' + date + '.txt'))
+
+# Collect filenames (timestamps) into lists
+print("Collecting image filenames into list")
+f1, f2 = [], []
+for (dirpath, dirnames, filenames) in os.walk(dir1):
+    for file in filenames:
+        file.split('.')[0]
+        f1.append(int(file.split('.')[0]))
+    break
+
+for (dirpath, dirnames, filenames) in os.walk(dir2):
+    for file in filenames:
+        f2.append(int(file.split('.')[0]))
+    break
+
+
+# Find closest matches in f2 to each element in f1
+print("Matching image timestamps")
+corr_frames = list(map(lambda y: min(f2, key=lambda x: abs(x - y)), f1))
+
+# Find closest encoder timestamps (matched to video 1 (left))
+print("Collecting encoder timestamps")
+with open(encFile1) as tsF:
+    file_content = tsF.read()
+content_list = re.split('\n', file_content)
+tsF.close()
+
+encVals1, encTS1 = [], []
+for item in content_list:
+    if len(item) > 2:
+        val = re.split(',', item)
+        encVals1.append(int(val[0]))
+        encTS1.append(int(val[1].replace('.', '').replace(' ', '')))
+
+with open(encFile2) as tsF:
+    file_content = tsF.read()
+content_list = re.split('\n', file_content)
+tsF.close()
+
+encVals2, encTS2 = [], []
+for item in content_list:
+    if len(item) > 2:
+        val = re.split(',', item)
+        encVals2.append(int(val[0]))
+        encTS2.append(int(val[1].replace('.', '').replace(' ', '')))
+
+print("Matching encoder timestamps")
+corr_timestamps1 = list(map(lambda y: min(encTS1, key=lambda x: abs(x - y)), f1))
+corr_timestamps2 = list(map(lambda y: min(encTS2, key=lambda x: abs(x - y)), f1))
+
+# Create new list with [f1, closest Match in f2, abs(offset)]
+matches = []
+
+for el1, el2, el3, el4 in zip(f1, corr_frames, corr_timestamps1, corr_timestamps2):
+    matches.append([el1, el2, abs(el1 - el2), el3, encVals1[encTS1.index(el3)], abs(el1 - el3), el4,
+                    encVals2[encTS2.index(el4)], abs(el1 - el4)])
+print("Synced data:")
+
+# for el1, el2 in zip(f1, corr_frames):
+#    matches.append([el1, el2, abs(el1-el2)])
+# print(matches)
+
+matches = np.array(matches)
+
+syncedData_dict = dict()
+syncedData_dict["c1ts"] = matches[:, 0]
+syncedData_dict["c2ts"] = matches[:, 1]
+syncedData_dict["c1c2offset"] = matches[:, 2]
+syncedData_dict["enc1ts"] = matches[:, 3]
+syncedData_dict["enc1tick"] = matches[:, 4]
+syncedData_dict["c1enc1offset"] = matches[:, 5]
+syncedData_dict["enc2ts"] = matches[:, 6]
+syncedData_dict["enc2tick"] = matches[:, 7]
+syncedData_dict["c1enc2offset"] = matches[:, 8]
+
+with open(os.path.join(cwd, 'synced_data.pkl'), 'wb') as f:
+    pickle.dump(syncedData_dict, f)
+    print("Synced data saved")
+
+
+# Loops through closest matches and creates new video with synced frames.
+print("Creating synced videos")
+out_path1 = os.path.join(cwd, "1.avi")
+out_path2 = os.path.join(cwd, "2.avi")
+fps = 60
+
+fourcc = cv2.VideoWriter_fourcc(*'XVID')
+out1 = cv2.VideoWriter(out_path1, fourcc, fps, (1280, 720))
+out2 = cv2.VideoWriter(out_path2, fourcc, fps, (1280, 720))
+
+for row in matches:
+    out1.write(cv2.imread(os.path.join(dir1, (str(row[0]) + '.jpeg'))))
+    out2.write(cv2.imread(os.path.join(dir2, (str(row[1]) + '.jpeg'))))
+
+# Release all space and windows once done
+out1.release()
+out2.release()
+
+cv2.destroyAllWindows()

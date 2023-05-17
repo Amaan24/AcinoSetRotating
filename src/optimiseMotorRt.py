@@ -18,7 +18,7 @@ from pyomo.opt import SolverFactory
 from pyomo.opt import SolverStatus, TerminationCondition
 from pyomo.core.base.PyomoModel import ConcreteModel
 from argparse import ArgumentParser
-import pan_compensation as pc
+import lib.utilsRotating.pan_compensation as pc
 import scipy.io as sio
 
 pose_to_3d = []
@@ -42,7 +42,7 @@ def build_model(project_dir) -> ConcreteModel:
     dx,  dy,  dz  = sp.symbols("\\dot{x} \\dot{y} \\dot{z}")
     ddx, ddy, ddz = sp.symbols("\\ddot{x} \\ddot{y} \\ddot{z}")
     
-    square_size = 0.09
+    square_size = 0.165
 
     # SYMBOLIC CHECKERBOARD POSE POSITIONS
     p_origin        = sp.Matrix([x, y, z])
@@ -54,7 +54,7 @@ def build_model(project_dir) -> ConcreteModel:
     p_r0_c6         = p_r0_c5 + R0_I @ sp.Matrix([-square_size, 0, 0])
 
     # ========= LAMBDIFY SYMBOLIC FUNCTIONS ========
-    positions = sp.Matrix([p_origin.T, p_r0_c1.T, p_r0_c2.T, p_r0_c3.T, p_r0_c4.T, p_r0_c5.T])
+    positions = sp.Matrix([p_origin.T, p_r0_c1.T, p_r0_c2.T, p_r0_c3.T])#, p_r0_c4.T, p_r0_c5.T])
 
     func_map = {"sin": sin, "cos": cos, "ImmutableDenseMatrix": np.array}
     sym_list = [x, y, z, phi, theta, psi]
@@ -73,45 +73,24 @@ def build_model(project_dir) -> ConcreteModel:
     encoder_arr = np.hstack((enc1, enc2))
 
     corner_mat_file_path = os.path.join(project_dir, "data", args.project, "checkerboard_corners.mat")
-    mat_contents = sio.loadmat(corner_mat_file_path)
+    corner_mat_contents = sio.loadmat(corner_mat_file_path)
 
-    K_arr = np.array([[[ 1901.2, 0,  585.8],
-            [ 0, 1895.0, 438.5],
-            [ 0,  0, 1]],
+    #Load Camera intrinsics and initial extrinsics from matlab mat file
+    extrinsic_mat_file_path = os.path.join(project_dir, "data", args.project, "extrinsics.mat")
+    extrinsic_mat_contents = sio.loadmat(extrinsic_mat_file_path)
 
-            [[ 1923.3,  0,  538.2],
-            [ 0,  1917.7, 403.3],
-            [0,  0,  1]]])
-    D_arr = np.array([[[-0.5403],
-            [0.3943],
-            [0],
-            [0]],
-
-            [[-0.5662],
-            [ 0.4610],
-            [0],
-            [0]]])
-    R_arr = np.array([[[ 1, 0,  0],
-            [ 0, 1, 0],
-            [ 0,  0, 1]],
-
-            [[0.9990,  0.0023,  -0.04373],
-            [0.0001,  0.9984, 0.0561],
-            [0.0437,  -0.0561,  0.9975]]])
-    t_arr = np.array([[[ 0.],
-                [ 0.],
-                [ 0.]],
-
-                [[-0.3684],
-                [-0.0091],
-                [0.1081]]])
-
-    D_arr = D_arr.reshape((-1, 4))
+    K_arr = np.array([extrinsic_mat_contents['k1'], extrinsic_mat_contents['k2']])
+    D_arr = np.array([extrinsic_mat_contents['d1'][0][0:4], extrinsic_mat_contents['d2'][0][0:4]])
+    R_arr = np.array([extrinsic_mat_contents['r1'], extrinsic_mat_contents['r2']])
+    t_arr = np.array([extrinsic_mat_contents['t1'][0], extrinsic_mat_contents['t2'][0]])
+    t1 = np.array(extrinsic_mat_contents['t1'][0]).reshape(3,1)
+    t2 = np.array(extrinsic_mat_contents['t2'][0]).reshape(3,1)
+    t_arr = np.array([t1, t2])
 
     print(f"\n\n\nLoading data")
 
     def get_meas_from_df(n, c, l, d):
-        return mat_contents['cornerPoints'][n-1][c-1][l-1][d-1]
+        return corner_mat_contents['cornerPoints'][n-1][c-1][l-1][d-1]
 
     def get_enc_meas(n, c):
         return encoder_arr[n, c]
@@ -126,16 +105,15 @@ def build_model(project_dir) -> ConcreteModel:
     D3 = 3 
 
     proj_funcs = [pt3d_to_x2d, pt3d_to_y2d]
-    proj_funcs_rotating = [pt3d_to_x2d_rotating, pt3d_to_y2d_rotating]
 
-    R = 0.5  # measurement standard deviation
+    R = 1  # measurement standard deviation
 
     # estimate initial points
     frame_est = np.arange(N)
 
-    x_est = np.array([1  for i in range(len(frame_est))])
+    x_est = np.array([0.5  for i in range(len(frame_est))])
     y_est = np.array([6  for i in range(len(frame_est))])
-    z_est = np.array([0.5  for i in range(len(frame_est))])
+    z_est = np.array([2  for i in range(len(frame_est))])
 
     print("Started Optimisation")
     m = ConcreteModel(name="Skeleton")
@@ -155,7 +133,7 @@ def build_model(project_dir) -> ConcreteModel:
             return 1/R
     m.meas_err_weight = Param(m.N, m.C, m.L, initialize=init_meas_weights, mutable=True,
                               within=Any)  
-
+    
     m.h = h
 
     def init_measurements_df(m, n, c, l, d2):
@@ -163,13 +141,13 @@ def build_model(project_dir) -> ConcreteModel:
     m.meas = Param(m.N, m.C, m.L, m.D2, initialize=init_measurements_df, within=Any)
     
     ## For rotating c1 and c2
-    def init_encoder_err_weight(m):
-        return ((102000*(2*np.pi)))
-    m.enc_err_weight = Param(initialize=init_encoder_err_weight, mutable=True, within=Any)
+    def init_enc_model_weights(m, c):
+        return 0.2 #(rad/s^2) -> Acceleration error for constant acc model
+    m.enc_model_err_weight = Param(m.C, initialize=init_enc_model_weights, within=Any)
 
-    def init_enc_model_weights(m):
-        return 1/(2*np.pi*102000)**2
-    m.enc_model_err_weight = Param(initialize=init_enc_model_weights, within=Any)
+    def init_enc_meas_weights(model, n, c):
+        return 1/(np.pi/180)**2 #1/rads -> Backlash error
+    m.enc_meas_err_weight = Param(m.N, m.C, initialize=init_enc_meas_weights, mutable=True,within=Any)
 
     def init_encoder_measurements(m, n, c):
             return pc.count_to_rad(get_enc_meas(n + start_frame - 1, c - 1)) 
@@ -261,6 +239,10 @@ def build_model(project_dir) -> ConcreteModel:
             return Constraint.Skip
     m.constant_acc = Constraint(m.N, m.C, rule=constant_acc)
 
+
+    ###### DOUBLE CHECK THE MEASUREMENT FUNCTION
+    ###### CHECK EULER FORMULATION
+
     # MEASUREMENT
     def measurement_constraints(m, n, c, l, d2):
         # project
@@ -270,10 +252,10 @@ def build_model(project_dir) -> ConcreteModel:
                        [0, 0, -1],
                        [0, 1, 0]])
 
-        RO_Ct0 = np.array(R)
-        Cc = np.array(-1*RO_Ct0 @ t)    
+        #RO_Ct0 = np.array(R)
+        #Cc = np.array(-1*RO_Ct0 @ t)    
         
-        RCt0_Mt0 = np_rot_x(m.rot_ct0_mt0[1, c].value) @ np_rot_y(m.rot_ct0_mt0[2, c].value) @ np_rot_z(m.rot_ct0_mt0[3, c].value)
+        #RCt0_Mt0 = np_rot_x(m.rot_ct0_mt0[1, c].value) @ np_rot_y(m.rot_ct0_mt0[2, c].value) @ np_rot_z(m.rot_ct0_mt0[3, c].value)
         #RCt0_Mt0 = np.array([[m.rot_ct0_mt0[1, c], m.rot_ct0_mt0[2, c], m.rot_ct0_mt0[3, c]],
         #               [m.rot_ct0_mt0[4, c], m.rot_ct0_mt0[5, c], m.rot_ct0_mt0[6, c]],
         #               [m.rot_ct0_mt0[7, c], m.rot_ct0_mt0[8, c], m.rot_ct0_mt0[9, c]]])
@@ -281,22 +263,26 @@ def build_model(project_dir) -> ConcreteModel:
         #                     [0, 1, 0],
         #                     [0, 0, 1]])
         #Cm = np.array([[m.tran_cam_motor[1, c], m.tran_cam_motor[2, c], m.tran_cam_motor[3, c]]]).T
-        Cm = np.array([[0, 0, 0]]).T 
+        #Cm = np.array([[0, 0, 0]]).T 
 
-        RMt0_Mt1 = np_rot_y(-1*m.x_cam[n, c].value)
+        #RMt0_Mt1 = np_rot_y(-1*m.x_cam[n, c].value)
 
-        P_world = np.array([[m.poses[n, l, 1]],
-                           [m.poses[n, l, 2]],
-                           [m.poses[n, l, 3]]])
+        #P_world = np.array([[m.poses[n, l, 1]],
+        #                   [m.poses[n, l, 2]],
+        #                   [m.poses[n, l, 3]]])
 
-        P_cam =  RCt0_Mt0.T @ (RMt0_Mt1 @ RCt0_Mt0 @ (RO_Ct0 @ (RA_O @ P_world - Cc) - Cm) + Cm) 
+        #P_cam =  RCt0_Mt0.T @ (RMt0_Mt1 @ RCt0_Mt0 @ (RO_Ct0 @ (RA_O @ P_world - Cc) - Cm) + Cm) 
         #P_cam = RMt0_Mt1 @ RO_Ct0 @ RA_O @ P_world + RMt0_Mt1 @ t
 
-        x = P_cam[0]
-        y = P_cam[1]
-        z = P_cam[2]
-        
-        return proj_funcs_rotating[d2 - 1](x, y, z, K, D) - m.meas[n, c, l, d2] - m.slack_meas[n, c, l, d2] == 0 #+m.meas = dlc points
+        #x = P_cam[0]
+        #y = P_cam[1]
+        #z = P_cam[2]
+
+        R =  np_rot_y(m.x_cam[n, c].value).T @ R
+        t =  np_rot_y(m.x_cam[n, c].value).T @ t
+        x, y, z = m.poses[n, l, 1], m.poses[n, l, 2], m.poses[n, l, 3]
+
+        return proj_funcs[d2 - 1](x, y, z, K, D, R, t) - m.meas[n, c, l, d2] - m.slack_meas[n, c, l, d2] == 0 #+m.meas = dlc points
 
     m.measurement = Constraint(m.N, m.C, m.L, m.D2, rule=measurement_constraints)
 
@@ -318,23 +304,23 @@ def build_model(project_dir) -> ConcreteModel:
     # ======= OBJECTIVE FUNCTION =======
     def obj(m):
         slack_meas_err = 0.0
-        enc_model_err = 0.0
-        enc_meas_err = 0.0
+        enc_slack_model_err = 0.0
+        enc_slack_meas_err = 0.0
 
         for n in range(1, N + 1): #Frame
             # Measurement Error
             for l in range(1, L + 1): #labels
                 for c in range(1, C + 1): #cameras
                     for d2 in range(1, D2 + 1): #Dimension on measurements
-                        slack_meas_err += m.meas_err_weight[n, c, l] * m.slack_meas[n, c, l, d2] **2
+                        slack_meas_err += redescending_loss(m.meas_err_weight[n, c, l] * m.slack_meas[n, c, l, d2], 3, 5, 15)
             # Encoder Error
             for c in range(1, C + 1): # Encoder/Cameras
                 # Encoder Model Error
-                enc_model_err += m.enc_model_err_weight * m.enc_slack_model[n, c] ** 2
-                # Encoder Measurement Error
-                enc_meas_err += m.enc_err_weight * m.enc_slack_meas[n, c]**2 #Removed - Assuming zero encoder meas error!
+                enc_slack_model_err += m.enc_model_err_weight[c] * m.enc_slack_model[n, c] ** 2 # 
+                # Encoder Measurement Error -> Gearbox backlash 1 deg
+                enc_slack_meas_err += m.enc_meas_err_weight[n, c] * m.enc_slack_meas[n, c] **2
 
-        return slack_meas_err + enc_meas_err + enc_model_err
+        return slack_meas_err + enc_slack_meas_err + enc_slack_model_err
 
     m.obj = Objective(rule=obj)
 
@@ -410,10 +396,11 @@ def convert_to_dict(m, poses) -> Dict:
     motor_trans_optimised = np.array(motor_trans)
 
     print(x_optimised)
+    print("Encoder Angles")
     print(x_cam_optimised)
 
-    print(motor_rot_optimised)
-    print(motor_trans_optimised)
+    #print(motor_rot_optimised)
+    #print(motor_trans_optimised)
 
     positions = np.array([poses(*states) for states in x_optimised[:, :45]])
     file_data = dict(
