@@ -20,6 +20,7 @@ from pyomo.core.base.PyomoModel import ConcreteModel
 from argparse import ArgumentParser
 import lib.utilsRotating.pan_compensation as pc
 import scipy.io as sio
+import math
 
 pose_to_3d = []
 
@@ -76,7 +77,7 @@ def build_model(project_dir) -> ConcreteModel:
     corner_mat_contents = sio.loadmat(corner_mat_file_path)
 
     #Load Camera intrinsics and initial extrinsics from matlab mat file
-    extrinsic_mat_file_path = os.path.join(project_dir, "data", args.project, "extrinsics.mat")
+    extrinsic_mat_file_path = os.path.join(project_dir, "data", args.project, "extrinsicsUnrotated.mat")
     extrinsic_mat_contents = sio.loadmat(extrinsic_mat_file_path)
 
     K_arr = np.array([extrinsic_mat_contents['k1'], extrinsic_mat_contents['k2']])
@@ -85,7 +86,7 @@ def build_model(project_dir) -> ConcreteModel:
     t_arr = np.array([extrinsic_mat_contents['t1'][0], extrinsic_mat_contents['t2'][0]])
     t1 = np.array(extrinsic_mat_contents['t1'][0]).reshape(3,1)
     t2 = np.array(extrinsic_mat_contents['t2'][0]).reshape(3,1)
-    t_arr = np.array([t1, t2])
+    #t_arr = np.array([t1, t2])
 
     print(f"\n\n\nLoading data")
 
@@ -93,7 +94,7 @@ def build_model(project_dir) -> ConcreteModel:
         return corner_mat_contents['cornerPoints'][n-1][c-1][l-1][d-1]
 
     def get_enc_meas(n, c):
-        return encoder_arr[n, c]
+        return encoder_arr[n-1, c]
 
     h = 1 / 60  # timestep: 1/framerate
     start_frame = args.start_frame  
@@ -106,14 +107,14 @@ def build_model(project_dir) -> ConcreteModel:
 
     proj_funcs = [pt3d_to_x2d, pt3d_to_y2d]
 
-    R = 1  # measurement standard deviation
+    R = 0.5  # measurement standard deviation (pixels)
 
     # estimate initial points
     frame_est = np.arange(N)
 
     x_est = np.array([0.5  for i in range(len(frame_est))])
-    y_est = np.array([6  for i in range(len(frame_est))])
-    z_est = np.array([2  for i in range(len(frame_est))])
+    y_est = np.array([-0.5  for i in range(len(frame_est))])
+    z_est = np.array([6  for i in range(len(frame_est))])
 
     print("Started Optimisation")
     m = ConcreteModel(name="Skeleton")
@@ -166,8 +167,8 @@ def build_model(project_dir) -> ConcreteModel:
     m.enc_slack_meas = Var(m.N, m.C, initialize=0.0) #Update
     m.enc_slack_model = Var(m.N, m.C, initialize=0.0)
 
-    m.rot_ct0_mt0 = Var(m.MAT, m.C)
-    m.tran_cam_motor = Var(m.VEC, m.C) 
+    m.rot_ct0_mt0 = Var(m.N, m.MAT, m.C)
+    m.tran_cam_motor = Var(m.N, m.VEC, m.C) 
 
     # ===== VARIABLES INITIALIZATION =====
     init_x = np.zeros((N, P))
@@ -190,14 +191,15 @@ def build_model(project_dir) -> ConcreteModel:
             for d3 in range(1, D3 + 1):
                 m.poses[n, l, d3].value = pos[d3 - 1]
 
-    for n in range(1, 4):
-        m.rot_ct0_mt0[n, 1] = 0
-        m.rot_ct0_mt0[n, 2] = 0
+    for n in range(1, N + 1):
+      for p in range(1, 4):
+            m.rot_ct0_mt0[n, p, 1] = 0
+            m.rot_ct0_mt0[n, p, 2] = 0
 
-    
-    for n in range(1, 4):
-        m.tran_cam_motor[n, 1] = 0
-        m.tran_cam_motor[n, 2] = 0
+    for n in range(1, N + 1):
+        for p in range(1, 4):
+            m.tran_cam_motor[n, p, 1] = 0
+            m.tran_cam_motor[n, p, 2] = 0
 
 
     # ===== CONSTRAINTS =====
@@ -208,6 +210,35 @@ def build_model(project_dir) -> ConcreteModel:
         [pos] = pos_funcs[l - 1](*var_list)
         return pos[d3 - 1] == m.poses[n, l, d3]
     m.pose_constraint = Constraint(m.N, m.L, m.D3, rule=pose_constraint)
+
+    def motor_rotation_constraints1(m, n, mat, c):
+        return m.rot_ct0_mt0[n, mat, c] <= 0.3
+    m.motor_rot_estimate1 = Constraint(m.N, m.MAT, m.C, rule=motor_rotation_constraints1)
+
+    def motor_rotation_constraints2(m, n, mat, c):
+        return m.rot_ct0_mt0[n, mat, c] >= -0.3
+    m.motor_rot_estimate2 = Constraint(m.N, m.MAT, m.C, rule=motor_rotation_constraints2)
+
+    def motor_translation_constraints1(m, n, vec, c):
+        return m.tran_cam_motor[n, vec, c] <= 0.05
+    m.motor_trans_estimate1 = Constraint(m.N, m.VEC, m.C, rule=motor_translation_constraints1)
+    def motor_translation_constraints2(m, n, vec, c):
+        return m.tran_cam_motor[n, vec, c] >= -0.05
+    m.motor_trans_estimate2 = Constraint(m.N, m.VEC, m.C, rule=motor_translation_constraints2)
+
+    def constant_rot(m, n, p, c):
+        if n > 1:
+            return m.rot_ct0_mt0[n, p, c] == m.rot_ct0_mt0[n - 1, p, c]
+        else:
+            return Constraint.Skip
+    m.constant_rot = Constraint(m.N, m.MAT, m.C, rule=constant_rot)
+
+    def constant_trans(m, n, p, c):
+        if n > 1:
+            return m.tran_cam_motor[n, p, c] == m.tran_cam_motor[n - 1, p, c]
+        else:
+            return Constraint.Skip
+    m.constant_trans = Constraint(m.N, m.VEC, m.C, rule=constant_trans)
 
     # CHECKERBOARD MODEL
     def constant_pos(m, n, p):
@@ -246,40 +277,29 @@ def build_model(project_dir) -> ConcreteModel:
     # MEASUREMENT
     def measurement_constraints(m, n, c, l, d2):
         # project
-        K, D, R, t = K_arr[c - 1], D_arr[c - 1], R_arr[c - 1], t_arr[c - 1]
+        K, D, Ri, t = K_arr[c - 1], D_arr[c - 1], R_arr[c - 1], t_arr[c - 1]
 
-        RA_O = np.array([[1, 0, 0],
-                       [0, 0, -1],
-                       [0, 1, 0]])
+        Cc = np.array(-1*Ri.T @ t)
 
-        #RO_Ct0 = np.array(R)
-        #Cc = np.array(-1*RO_Ct0 @ t)    
+        RMt0_Ct0 = np.array(np_rot_x(m.rot_ct0_mt0[n, 1, c].value) @ np_rot_z(m.rot_ct0_mt0[n, 3, c].value) @ np_rot_y(m.rot_ct0_mt0[n, 2, c].value))
+
+        Cm = np.array([m.tran_cam_motor[n, 1, c], m.tran_cam_motor[n, 2, c], m.tran_cam_motor[n, 3, c]]).T
+        RCt1_Mt1 = RMt0_Ct0.T
+
+        RMt0_Mt1 = np_rot_y(m.x_cam[n, c].value).T
+
         
-        #RCt0_Mt0 = np_rot_x(m.rot_ct0_mt0[1, c].value) @ np_rot_y(m.rot_ct0_mt0[2, c].value) @ np_rot_z(m.rot_ct0_mt0[3, c].value)
-        #RCt0_Mt0 = np.array([[m.rot_ct0_mt0[1, c], m.rot_ct0_mt0[2, c], m.rot_ct0_mt0[3, c]],
-        #               [m.rot_ct0_mt0[4, c], m.rot_ct0_mt0[5, c], m.rot_ct0_mt0[6, c]],
-        #               [m.rot_ct0_mt0[7, c], m.rot_ct0_mt0[8, c], m.rot_ct0_mt0[9, c]]])
-        #RCt0_Mt0 = np.array([[1, 0, 0],
-        #                     [0, 1, 0],
-        #                     [0, 0, 1]])
-        #Cm = np.array([[m.tran_cam_motor[1, c], m.tran_cam_motor[2, c], m.tran_cam_motor[3, c]]]).T
-        #Cm = np.array([[0, 0, 0]]).T 
+        #Pc1 = (R @ (P_world - Cc)) Pm1 = (RCt1_Mt1 @ (Pc1 - Cm)) Pm0 = (RMt0_Mt1 @ Pm1)
+        #P_cam = RMt0_Ct0 @ (RMt0_Mt1 @ (RCt1_Mt1 @ ((R @ (P_world - Cc)) - Cm)))
 
-        #RMt0_Mt1 = np_rot_y(-1*m.x_cam[n, c].value)
+        R = RCt1_Mt1 @ RMt0_Mt1 @ RMt0_Ct0 @ Ri
+        print(f'R - {R}')
+        #t = - RCt1_Mt1 @ RMt0_Mt1 @ RMt0_Ct0 @ Ri @ (RCt1_Mt1 @ RMt0_Mt1 @ RMt0_Ct0 @ Ri @ Cc - RCt1_Mt1 @ RMt0_Mt1 @ RMt0_Ct0 @ Cm + RCt1_Mt1 @ Cm)
 
-        #P_world = np.array([[m.poses[n, l, 1]],
-        #                   [m.poses[n, l, 2]],
-        #                   [m.poses[n, l, 3]]])
-
-        #P_cam =  RCt0_Mt0.T @ (RMt0_Mt1 @ RCt0_Mt0 @ (RO_Ct0 @ (RA_O @ P_world - Cc) - Cm) + Cm) 
-        #P_cam = RMt0_Mt1 @ RO_Ct0 @ RA_O @ P_world + RMt0_Mt1 @ t
-
-        #x = P_cam[0]
-        #y = P_cam[1]
-        #z = P_cam[2]
-
-        R =  np_rot_y(m.x_cam[n, c].value).T @ R
-        t =  np_rot_y(m.x_cam[n, c].value).T @ t
+        print(f't - {t}')
+        #K, D, R, t = K_arr[c - 1], D_arr[c - 1], R_arr[c - 1], t_arr[c - 1]
+        #R =  np_rot_y(m.x_cam[n, c].value).T @ R
+        #t =  np_rot_y(m.x_cam[n, c].value).T @ t
         x, y, z = m.poses[n, l, 1], m.poses[n, l, 2], m.poses[n, l, 3]
 
         return proj_funcs[d2 - 1](x, y, z, K, D, R, t) - m.meas[n, c, l, d2] - m.slack_meas[n, c, l, d2] == 0 #+m.meas = dlc points
@@ -289,17 +309,6 @@ def build_model(project_dir) -> ConcreteModel:
     def enc_measurement_constraints(m, n, c):
                 return  m.x_cam[n, c] - m.meas_enc[n, c] - m.enc_slack_meas[n, c]== 0
     m.enc_measurement = Constraint(m.N, m.C, rule=enc_measurement_constraints)
-
-    def motor_rotation_constraints(m, mat, c):
-        return abs(m.rot_ct0_mt0[mat, c]) <= 0.2
-    m.motor_rot_estimate = Constraint(m.MAT, m.C, rule=motor_rotation_constraints)
-
-    #def motor_translation_constraints(m, vec, c):
-    #    return m.tran_cam_motor[vec, c] <= 0.20
-    #m.motor_trans_estimate = Constraint(m.VEC, m.C, rule=motor_translation_constraints)
-    #def motor_translation_constraints1(m, vec, c):
-    #    return m.tran_cam_motor[vec, c] >= -0.20
-    #m.motor_trans_estimate1 = Constraint(m.VEC, m.C, rule=motor_translation_constraints1)
 
     # ======= OBJECTIVE FUNCTION =======
     def obj(m):
@@ -366,6 +375,9 @@ def convert_to_dict(m, poses) -> Dict:
     x_cam_model_slack_optimised = []
     x_slack_meas_optimised = []
 
+    motor_rot = []
+    motor_trans = []
+
     for n in m.N:
         x_optimised.append([value(m.x[n, p]) for p in m.P])
         x_cam_optimised.append([value(m.x_cam[n, c]) for c in m.C])
@@ -378,12 +390,10 @@ def convert_to_dict(m, poses) -> Dict:
                 temp.append([value(m.slack_meas[n, c, l, d]) for d in m.D2])
         x_slack_meas_optimised.append(temp)
 
-    motor_rot = []
-    motor_trans = []
+        for c in m.C:
+            motor_rot.append([value(m.rot_ct0_mt0[n, i, c]) for i in range(1, 4)])
+            motor_trans.append([value(m.tran_cam_motor[n, i, c]) for i in m.VEC])
 
-    for c in m.C:
-        motor_rot.append([value(m.rot_ct0_mt0[i, c]) for i in range(1, 4)])
-        motor_trans.append([value(m.tran_cam_motor[i, c]) for i in m.VEC])
 
     x_optimised = np.array(x_optimised)
     x_cam_optimised = np.array(x_cam_optimised)
@@ -399,8 +409,8 @@ def convert_to_dict(m, poses) -> Dict:
     print("Encoder Angles")
     print(x_cam_optimised)
 
-    #print(motor_rot_optimised)
-    #print(motor_trans_optimised)
+    print(motor_rot_optimised[1])
+    print(motor_trans_optimised[1])
 
     positions = np.array([poses(*states) for states in x_optimised[:, :45]])
     file_data = dict(

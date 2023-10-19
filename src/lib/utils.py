@@ -114,9 +114,9 @@ def load_scene(fpath):
     return k_arr, d_arr, r_arr, t_arr, camera_resolution
 
 
-"""
+
 # For hand-labelled .h5 file
-def create_dlc_points_2d_file(dlc_df_fpaths):
+def create_dlc_points_2d_file_hand_labelled(dlc_df_fpaths):
     dfs = []
     print(dlc_df_fpaths)
     for path in dlc_df_fpaths:
@@ -137,7 +137,7 @@ def create_dlc_points_2d_file(dlc_df_fpaths):
 
     dlc_df = dlc_df[['frame', 'camera', 'marker', 'x', 'y', 'likelihood']]
     return dlc_df
-"""
+
 # for DLC labelled .h5 file
 def create_dlc_points_2d_file(dlc_df_fpaths):
     dfs = []

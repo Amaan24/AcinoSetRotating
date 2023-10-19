@@ -8,6 +8,9 @@ import numpy as np
 import cv2
 import scipy.io as sio
 
+import tkinter as tk
+from tkinter import filedialog, simpledialog
+
 def load_pickle(pickle_file) -> Dict:
     """
     Loads a .pickle file
@@ -58,6 +61,16 @@ def pt3d_to_2d(x, y, z, K, D, R, t):
     v = K[1, 1] * y_P + K[1, 2]
     return u, v
 
+def np_rot_x(x):
+    c = np.cos(x)
+    s = np.sin(x)
+    return np.array([
+        [1, 0, 0],
+        [0, c, s],
+        [0, -s, c]
+    ])
+
+
 def np_rot_y(y):
     c = np.cos(y)
     s = np.sin(y)
@@ -67,6 +80,16 @@ def np_rot_y(y):
         [s, 0, c]
     ])
 
+
+def np_rot_z(z):
+    c = np.cos(z)
+    s = np.sin(z)
+    return np.array([
+        [c, s, 0],
+        [-s, c, 0],
+        [0, 0, 1]
+    ])
+
 def count_to_rad(enc_count):
     """
     Returns the given encoder count as its equivalent angle in radians
@@ -74,35 +97,44 @@ def count_to_rad(enc_count):
     ang = enc_count * 2 * np.pi / 102000
     return ang
 
-projectName = 'FinalHumanRig'
-start_frame = 8400
-fps = 10
 
-ROOT_DIR = "C:\\Users\\user-pc\\Desktop\\AcinoSetRotating\\data"
-cwd = os.path.join(ROOT_DIR, projectName)
+root = tk.Tk()
+root.withdraw()  # Hide the main window
+
+results = filedialog.askopenfilename(
+    title="Select a Pickle File",
+    filetypes=[("Pickle files", "*.pickle")]
+)
+if not results:
+    print("No file chosen. Exiting...")
+    exit()
+
+cwd = os.path.dirname(results)
+cwd = cwd.replace('results','').replace('/', '\\')
+
+start_frame = simpledialog.askinteger("Start Frame", "Enter the start frame:")
+if not start_frame:
+    start_frame = 0
+fps = 10
 
 vid_path1 = os.path.join(cwd, "1.avi")
 vid_path2 = os.path.join(cwd, "2.avi")
 
-results = os.path.join(cwd, 'results\\traj_results.pickle')
 encoder_path = os.path.join(cwd, "synced_data.pkl")
 camera_params_path = os.path.join(cwd, 'extrinsics.mat') 
+motor_camera_params_path = os.path.join(cwd, "cam_motor_transformations.mat")
 
-
-out_path = os.path.join(cwd, "reprojections.avi")
+out_path = os.path.join(cwd, f"results\\reprojections-{start_frame}.avi")
 fourcc = cv2.VideoWriter_fourcc(*'XVID')
 out = cv2.VideoWriter(out_path, fourcc, fps, (1920, 540))
-
-
 
 #Load Camera intrinsics and initial extrinsics from matlab mat file
 mat_contents = sio.loadmat(camera_params_path)
 
 #Load 3D Points from trajectory optimization
 opt_results = load_pickle(results)
-#positions = [opt_results['positions'][0]] * 500
-positions = opt_results['positions']
-#print(positions)
+positions = opt_results['positions']# positions =[[[ 0.5,    -0.35,    5]]] * 500
+print(positions)
 
 #Open encoder files for R and t changes
 with open(encoder_path, 'rb') as handle:
@@ -119,30 +151,92 @@ K_arr = np.array([mat_contents['k1'], mat_contents['k2']])
 D_arr = np.array([mat_contents['d1'][0][0:4], mat_contents['d2'][0][0:4]])
 R_arr = np.array([mat_contents['r1'], mat_contents['r2']])
 t_arr = np.array([mat_contents['t1'][0], mat_contents['t2'][0]])
-print(t_arr)
 
+# Camera<->Motor Transformations
+#mat_contents = sio.loadmat(motor_camera_params_path)
+
+#R_CM_arr = np.array([mat_contents['R_CM1'], mat_contents['R_CM2']])
+#R_MC_arr = np.array([mat_contents['R_MC1'], mat_contents['R_MC2']])
+#t_CM_arr = np.array([mat_contents['t_CM1'][0], mat_contents['t_CM2'][0]])
+#t_MC_arr = np.array([mat_contents['t_MC1'][0], mat_contents['t_MC2'][0]])
+
+R_CM_arr = np.array([np_rot_y(0) @ np_rot_x(0*0.00174533) @ np_rot_z(0*0.00174533), 
+                         np_rot_y(0) @ np_rot_x(0) @ np_rot_z(0)])     
+c_CM_arr = np. array([[ 0.01,  0.00, 0.00,],
+                        [0.00,  0.00,  0.00,]])
+t_CM_arr = np.array([-R_CM_arr[0] @ c_CM_arr[0],
+                    -R_CM_arr[1] @ c_CM_arr[1]])
+
+R_MC_arr = np.array([R_CM_arr[0].T, 
+                        R_CM_arr[1].T])
+c_MC_arr = np.array([-R_CM_arr[0] @ c_CM_arr[0], 
+                    -R_CM_arr[1] @ c_CM_arr[1]])
+t_MC_arr = np.array([-R_MC_arr[0] @ c_MC_arr[0],
+                    -R_MC_arr[1] @ c_MC_arr[1]])
+
+#X, Z
 frame_num = start_frame
 cap1 = cv2.VideoCapture(vid_path1)
 cap2 = cv2.VideoCapture(vid_path2)
 count = 0
-for frame in positions:
+
+for i, frame in enumerate(positions):
     cap1.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
     res, frame1 = cap1.read()
 
     cap2.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
     res, frame2 = cap2.read()
 
-    K1, D1, R1, t1 = K_arr[0], D_arr[0], R_arr[0], t_arr[0]
-    R1 =  np_rot_y(count_to_rad(encoder_arr[frame_num, 0])).T @ R1 
-    t1 =  np_rot_y(count_to_rad(encoder_arr[frame_num, 0])).T @ t1
-    print('Alpha:' + str(count_to_rad(encoder_arr[frame_num, 0])))
-    #print('Estimated Alpha: ' + str(estEnc[frame_num-start_frame,0]))
+    K1, D1, R1, t1, R_CM1, t_CM1, R_MC1, t_MC1 = K_arr[0], D_arr[0], R_arr[0], t_arr[0], R_CM_arr[0], t_CM_arr[0], R_MC_arr[0], t_MC_arr[0]
+    
+    #Convert Coordinate Transformations to homogenous coordinates
+    t1 = t1[:, np.newaxis]
+    R_i_homog1 = np.vstack([np.hstack([R1, t1]), [0, 0, 0, 1]])
 
-    K2, D2, R2, t2 = K_arr[1], D_arr[1], R_arr[1], t_arr[1]
-    R2 =   np_rot_y(count_to_rad(encoder_arr[frame_num, 1])).T @ R2 
-    t2 =   np_rot_y(count_to_rad(encoder_arr[frame_num, 1])).T @ t2
+    t_CM1 = t_CM1[:, np.newaxis]
+    R_CM_homog1 = np.vstack([np.hstack([R_CM1, t_CM1]), [0, 0, 0, 1]])
+
+    R_MM1 = np_rot_y(estEnc[i, 0]).T
+    t_MM1 = np.array([0,0,0])
+    t_MM1 = t_MM1[:, np.newaxis]
+    R_MM_homog1 = np.vstack([np.hstack([R_MM1, t_MM1]), [0, 0, 0, 1]])
+
+    t_MC1 = t_MC1[:, np.newaxis]
+    R_MC_homog1 = np.vstack([np.hstack([R_MC1, t_MC1]), [0, 0, 0, 1]])
+
+    R_homog1 = R_MC_homog1 @ R_MM_homog1 @ R_CM_homog1 @ R_i_homog1
+    #R_homog1 = R_MM_homog1 @ R_i_homog1
+    
+    R1 = R_homog1[:3, :3]
+    t1 = R_homog1[:3, 3]
+
+    print('Alpha:' + str(count_to_rad(encoder_arr[frame_num, 0])))
+    print('Estimated Alpha: ' + str(estEnc[frame_num-start_frame,0]))
+
+    K2, D2, R2, t2, R_CM2, t_CM2, R_MC2, t_MC2 = K_arr[1], D_arr[1], R_arr[1], t_arr[1], R_CM_arr[1], t_CM_arr[1], R_MC_arr[1], t_MC_arr[1]
+    
+    t2 = t2[:, np.newaxis]
+    R_i_homog2 = np.vstack([np.hstack([R2, t2]), [0, 0, 0, 1]])
+
+    t_CM2 = t_CM2[:, np.newaxis]
+    R_CM_homog2 = np.vstack([np.hstack([R_CM2, t_CM2]), [0, 0, 0, 1]])
+
+    R_MM2 = np_rot_y(estEnc[i, 1]).T
+    t_MM2 = np.array([0,0,0])
+    t_MM2 = t_MM2[:, np.newaxis]
+    R_MM_homog2 = np.vstack([np.hstack([R_MM2, t_MM2]), [0, 0, 0, 1]])
+
+    t_MC2 = t_MC2[:, np.newaxis]
+    R_MC_homog2 = np.vstack([np.hstack([R_MC2, t_MC2]), [0, 0, 0, 1]])
+
+    #R_homog2 = R_MC_homog2 @ R_MM_homog2 @ R_CM_homog2 @ R_i_homog2
+    R_homog2 = R_MM_homog2 @ R_i_homog2
+    
+    R2 = R_homog2[:3, :3]
+    t2 = R_homog2[:3, 3]
+
     print('Beta:' + str(count_to_rad(encoder_arr[frame_num, 1])))
-    #print('Estimated Beta: ' + str(estEnc[frame_num-start_frame,1]))
+    print('Estimated Beta: ' + str(estEnc[frame_num-start_frame,1]))
     
     print(f"Frame: {frame_num}")
     count += 1

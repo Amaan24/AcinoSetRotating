@@ -377,8 +377,8 @@ class PageTwo(tk.Frame):
             #a.set_yticks([])
             #a.set_zticks([])
 
-            a.set_xlim3d(-2, 2)
-            a.set_ylim3d(4, 8)
+            a.set_xlim3d(3, 8)
+            a.set_ylim3d(0, 8)
             a.set_zlim3d(-1.5,1.5)
 
             canvas = FigureCanvasTkAgg(f, self)
@@ -401,8 +401,9 @@ class PageTwo(tk.Frame):
             pose_dict = {}
 
             project = "FinalHumanRig"
+            project = "18May2023"
             results_dir = os.path.join("C://Users//user-pc//Desktop/AcinoSetRotating//data", project, "results")
-            results_file = os.path.join(results_dir, ("traj_results.pickle")) 
+            results_file = os.path.join(results_dir, ("traj_results_0.001ModelXYZVaraince.pickle")) 
             frames_dir =  os.path.join(results_dir, "frames")
 
             if not os.path.exists(frames_dir):
